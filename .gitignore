@@ -216,6 +216,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Private project files
+.vscode/settings.json
 config/**/.*
 docs/**/.*
 docs/TODO

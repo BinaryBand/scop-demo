@@ -3,6 +3,7 @@
 Services call out through Port interfaces only; never construct adapters directly.
 Imports from scop.adapters are forbidden.
 """
+
 from scop.models.bases import Service
 
 __all__ = ["Service"]
