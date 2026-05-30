@@ -1,0 +1,9 @@
+id: no-argparse-outside-cli
+language: python
+severity: error
+message: argparse may only be imported in cli.py (ARCHITECTURE.md convention 8)
+rule:
+  pattern: import argparse
+files:
+  - "scop/**/*.py"
+  - "!scop/cli.py"

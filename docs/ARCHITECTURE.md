@@ -60,7 +60,7 @@ Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concr
 | Tool | Role | Config |
 | --- | --- | --- |
 | `import-linter` | Import layer contract | `.importlinter` |
-| `ast-grep` | Structural + pattern rules | `sgconfig.yml`, `rules/*.yml` |
+| `ast-grep` | Structural + pattern rules | `rules/*.yml` |
 | `ruff` | Linting + formatting | `pyproject.toml` |
 | `ty` | Type checking | `pyproject.toml` |
 

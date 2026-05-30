@@ -1,0 +1,9 @@
+id: no-sys-exit-outside-cli
+language: python
+severity: error
+message: sys.exit() may only be called in cli.py (ARCHITECTURE.md convention 8)
+rule:
+  pattern: sys.exit($$$ARGS)
+files:
+  - "scop/**/*.py"
+  - "!scop/cli.py"

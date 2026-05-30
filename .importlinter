@@ -1,0 +1,82 @@
+[importlinter]
+root_package = scop
+
+# ── cli ──────────────────────────────────────────────────────────────────────
+# cli.py may only import AppDispatcher; it must not reach past the dispatcher
+# into registry, services, adapters, ports, models, or utils.
+[importlinter:contract:cli-only-imports-dispatcher]
+name = cli.py only imports AppDispatcher
+type = forbidden
+source_modules =
+    scop.cli
+forbidden_modules =
+    scop.app.registry
+    scop.services
+    scop.adapters
+    scop.ports
+    scop.models
+    scop.utils
+
+# ── services ─────────────────────────────────────────────────────────────────
+# Services call through ports; they never construct adapters or touch utils.
+[importlinter:contract:services-no-adapters-or-app]
+name = services must not import adapters, app, or utils
+type = forbidden
+source_modules =
+    scop.services
+forbidden_modules =
+    scop.adapters
+    scop.app
+    scop.utils
+
+# ── adapters ─────────────────────────────────────────────────────────────────
+# Adapters answer port calls; they must not reach into services or the wiring layer.
+[importlinter:contract:adapters-no-services-or-app]
+name = adapters must not import services or app
+type = forbidden
+source_modules =
+    scop.adapters
+forbidden_modules =
+    scop.services
+    scop.app
+
+# ── ports ─────────────────────────────────────────────────────────────────────
+# Ports are pure interface definitions; only models imports are permitted.
+[importlinter:contract:ports-purity]
+name = ports must not import services, adapters, app, or utils
+type = forbidden
+source_modules =
+    scop.ports
+forbidden_modules =
+    scop.services
+    scop.adapters
+    scop.app
+    scop.utils
+
+# ── models ────────────────────────────────────────────────────────────────────
+# models/ is stdlib-pure; it must not import any project layer.
+[importlinter:contract:models-purity]
+name = models must not import any project layer
+type = forbidden
+source_modules =
+    scop.models
+forbidden_modules =
+    scop.services
+    scop.adapters
+    scop.ports
+    scop.app
+    scop.utils
+
+# ── utils ─────────────────────────────────────────────────────────────────────
+# utils/ is stdlib-pure; it must not import any domain layer.
+[importlinter:contract:utils-purity]
+name = utils must not import any domain layer
+type = forbidden
+source_modules =
+    scop.utils
+forbidden_modules =
+    scop.services
+    scop.adapters
+    scop.ports
+    scop.app
+    scop.models
