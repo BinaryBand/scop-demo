@@ -24,37 +24,46 @@ class SnapApp(BaseApp):
         action = args.get("action")
         room = "snapshot/diff" if action == "diff" else "snapshot"
 
-        stream.emit(SyslogMessage(
-            pri=6, msgid=MSGID.PAGE_BEGIN, room=room,
-            msg=f"=== {'Diff' if action == 'diff' else 'Snapshots'} ===",
-            data={
-                "title": "Diff" if action == "diff" else "Snapshots",
-                "subtitle": "Compare snapshots" if action == "diff"
-                            else "Manage and compare snapshots",
-            },
-        ))
+        stream.emit(
+            SyslogMessage(
+                pri=6,
+                msgid=MSGID.PAGE_BEGIN,
+                room=room,
+                msg=f"=== {'Diff' if action == 'diff' else 'Snapshots'} ===",
+                data={
+                    "title": "Diff" if action == "diff" else "Snapshots",
+                    "subtitle": "Compare snapshots"
+                    if action == "diff"
+                    else "Manage and compare snapshots",
+                },
+            )
+        )
 
         port = SnapshotAdapter()
 
         if args.get("help"):
             self._emit_help(stream, room)
         elif action == "create":
-            service: CreateSnapshotService | DiffSnapshotsService | ListSnapshotsService | SnapshotStatusService
+            service: (
+                CreateSnapshotService
+                | DiffSnapshotsService
+                | ListSnapshotsService
+                | SnapshotStatusService
+            )
             service = CreateSnapshotService(
                 port=port, room=room, dry_run=args.get("dry_run", False)
             )
             await service.run(stream)
         elif action == "diff":
             service = DiffSnapshotsService(
-                port=port, room=room,
+                port=port,
+                room=room,
                 from_snap=args.get("from_snap"),
                 to_snap=args.get("to_snap"),
             )
             await service.run(stream)
         elif args.get("list"):
-            service = ListSnapshotsService(
-                port=port, room=room, expand=args.get("all", False)
-            )
+            service = ListSnapshotsService(port=port, room=room, expand=args.get("all", False))
             await service.run(stream)
         else:
             service = SnapshotStatusService(port=port, room=room)
@@ -65,19 +74,35 @@ class SnapApp(BaseApp):
         stream.resolve(ok=True, data=end)
 
     def _emit_help(self, stream: StreamingResult, room: str) -> None:
-        stream.emit(SyslogMessage(
-            pri=6, msgid=MSGID.LIST_DECLARE, room=room,
-            msg="Commands",
-            data={"id": "help", "label": "snapshot", "ordered": False},
-        ))
+        stream.emit(
+            SyslogMessage(
+                pri=6,
+                msgid=MSGID.LIST_DECLARE,
+                room=room,
+                msg="Commands",
+                data={"id": "help", "label": "snapshot", "ordered": False},
+            )
+        )
         for cmd, desc in _COMMANDS:
-            stream.emit(SyslogMessage(
-                pri=6, msgid=MSGID.LIST_APPEND, room=room,
-                msg=f"  {cmd:<24}{desc}",
-                data={"id": "help", "item_id": cmd,
-                      "value": {"command": cmd, "description": desc}},
-            ))
-        stream.emit(SyslogMessage(
-            pri=6, msgid=MSGID.LIST_END, room=room, msg="",
-            data={"id": "help"},
-        ))
+            stream.emit(
+                SyslogMessage(
+                    pri=6,
+                    msgid=MSGID.LIST_APPEND,
+                    room=room,
+                    msg=f"  {cmd:<24}{desc}",
+                    data={
+                        "id": "help",
+                        "item_id": cmd,
+                        "value": {"command": cmd, "description": desc},
+                    },
+                )
+            )
+        stream.emit(
+            SyslogMessage(
+                pri=6,
+                msgid=MSGID.LIST_END,
+                room=room,
+                msg="",
+                data={"id": "help"},
+            )
+        )

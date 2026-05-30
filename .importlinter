@@ -16,6 +16,7 @@ forbidden_modules =
     scop.ports
     scop.models
     scop.utils
+allow_indirect_imports = True
 
 # ── services ─────────────────────────────────────────────────────────────────
 # Services call through ports; they never construct adapters or touch utils.

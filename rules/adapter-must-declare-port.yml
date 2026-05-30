@@ -2,15 +2,13 @@ id: adapter-must-declare-port
 language: python
 severity: error
 message: >
-  Adapter subclass '$NAME' must declare `port: ClassVar[type[Port]]`
-  (ARCHITECTURE.md convention 4 — port↔adapter parity)
+  Adapter subclass '$NAME' must declare `port: ClassVar[type[Port]]` (ARCHITECTURE.md convention 4 — port↔adapter parity)
 rule:
   all:
     - pattern: |
         class $NAME(Adapter):
             $$$BODY
     - not:
-        has:
-          pattern: "port: ClassVar[$_]"
+        regex: "port: ClassVar"
 files:
   - "scop/adapters/**/*.py"

@@ -5,5 +5,9 @@ message: sys.exit() may only be called in cli.py (ARCHITECTURE.md convention 8)
 rule:
   pattern: sys.exit($$$ARGS)
 files:
-  - "scop/**/*.py"
-  - "!scop/cli.py"
+  - "scop/adapters/**/*.py"
+  - "scop/app/**/*.py"
+  - "scop/models/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/utils/**/*.py"

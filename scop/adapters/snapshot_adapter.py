@@ -7,7 +7,7 @@ from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 from scop.ports.snapshot_port import SnapshotPort
 
 
-class SnapshotAdapter(Adapter):
+class SnapshotAdapter(Adapter, SnapshotPort):
     port: ClassVar[type[SnapshotPort]] = SnapshotPort
 
     def get_stats(self) -> SnapshotStats:

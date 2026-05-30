@@ -31,4 +31,4 @@ class AppDispatcher:
         try:
             return self._registry[command]
         except KeyError:
-            raise ValueError(f"Unknown command: {command!r}")
+            raise ValueError(f"Unknown command: {command!r}") from None

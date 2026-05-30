@@ -6,7 +6,7 @@ from typing import ClassVar
 from scop.models.results import StreamingResult
 
 
-class Port(ABC):
+class Port(ABC):  # noqa: B024 — intentional marker base with no abstract methods
     """Marker base — every class in ports/ must subclass this."""
 
 
