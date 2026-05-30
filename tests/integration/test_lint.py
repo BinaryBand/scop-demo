@@ -7,8 +7,6 @@ from pathlib import Path
 
 from scop.utils.proc import run_resolved
 
-# ty (0.0.38+) rejects a VIRTUAL_ENV that points at a non-venv directory.
-# Strip it so ty discovers the environment through poetry instead.
 _ENV_WITHOUT_VIRTUAL_ENV = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
 
 ROOT = Path(__file__).resolve().parents[2]

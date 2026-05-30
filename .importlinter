@@ -1,50 +1,87 @@
 [importlinter]
-root_package = scop
+root_packages =
+    scop
 
-# ── cli ──────────────────────────────────────────────────────────────────────
-# cli.py may only import AppDispatcher; it must not reach past the dispatcher
-# into registry, services, adapters, ports, models, or utils.
-[importlinter:contract:cli-only-imports-dispatcher]
-name = cli.py only imports AppDispatcher
+# ─────────────────────────────────────────────────────────────────────────────
+# Each contract below enforces one row of the edge contract table.
+# Symbol-level rules (AppDispatcher only, argparse, sys.exit) are enforced
+# by ast-grep — import-linter handles layer-level direct imports only.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# cli.py — edge verb: dispatches
+# Forbids cli from reaching past app/ into any other layer.
+# Symbol-level enforcement (AppDispatcher only) is handled by ast-grep.
+[importlinter:contract:cli]
+name = CLI may only import app
 type = forbidden
 source_modules =
     scop.cli
 forbidden_modules =
-    scop.app.registry
-    scop.services
     scop.adapters
-    scop.ports
+    scop.services
     scop.models
+    scop.ports
     scop.utils
-allow_indirect_imports = True
+ignore_imports =
+    scop.app -> scop.models.bases
+    scop.app.dispatcher -> scop.models.bases
+    scop.app.dispatcher -> scop.models.results
+    scop.app.registry.snap_app -> scop.adapters.snapshot_adapter
+    scop.app.registry.snap_app -> scop.models.bases
+    scop.app.registry.snap_app -> scop.models.messages
+    scop.app.registry.snap_app -> scop.models.results
+    scop.app.registry.snap_app -> scop.services.snapshot_service
+    scop.app.registry.root_app -> scop.models.bases
+    scop.app.registry.root_app -> scop.models.messages
+    scop.app.registry.root_app -> scop.models.results
+    scop.services.snapshot_service -> scop.ports.snapshot_port
 
-# ── services ─────────────────────────────────────────────────────────────────
-# Services call through ports; they never construct adapters or touch utils.
-[importlinter:contract:services-no-adapters-or-app]
-name = services must not import adapters, app, or utils
+
+# app/ — edge verbs: wires, types
+# app/ is the composition root — it may import services, adapters, and ports.
+# The only forbidden direction is upward into cli.
+[importlinter:contract:app]
+name = App may not import CLI
+type = forbidden
+source_modules =
+    scop.app
+forbidden_modules =
+    scop.cli
+
+
+# services/ — edge verbs: calls (ports), reads (models)
+# The DI rule: services may not import adapters directly.
+# They call adapters through ports — import-linter enforces the boundary.
+[importlinter:contract:services]
+name = Services may not import adapters directly
 type = forbidden
 source_modules =
     scop.services
 forbidden_modules =
     scop.adapters
     scop.app
+    scop.cli
     scop.utils
 
-# ── adapters ─────────────────────────────────────────────────────────────────
-# Adapters answer port calls; they must not reach into services or the wiring layer.
-[importlinter:contract:adapters-no-services-or-app]
-name = adapters must not import services or app
+
+# adapters/ — edge verbs: implements (ports), reads (models), uses (utils)
+# Adapters may not reach up into services, app, or cli.
+[importlinter:contract:adapters]
+name = Adapters may not reach up into services, app, or CLI
 type = forbidden
 source_modules =
     scop.adapters
 forbidden_modules =
     scop.services
     scop.app
+    scop.cli
 
-# ── ports ─────────────────────────────────────────────────────────────────────
-# Ports are pure interface definitions; only models imports are permitted.
-[importlinter:contract:ports-purity]
-name = ports must not import services, adapters, app, or utils
+
+# ports/ — edge verb: types (models)
+# Ports may only reference models. No other internal imports permitted.
+[importlinter:contract:ports]
+name = Ports may only reference models
 type = forbidden
 source_modules =
     scop.ports
@@ -52,32 +89,38 @@ forbidden_modules =
     scop.services
     scop.adapters
     scop.app
+    scop.cli
     scop.utils
 
-# ── models ────────────────────────────────────────────────────────────────────
-# models/ is stdlib-pure; it must not import any project layer.
-[importlinter:contract:models-purity]
-name = models must not import any project layer
+
+# models/ — no edge out
+# models/ is the innermost layer. It depends on nothing internal.
+[importlinter:contract:models]
+name = Models depend on nothing internal
 type = forbidden
 source_modules =
     scop.models
 forbidden_modules =
+    scop.ports
     scop.services
     scop.adapters
-    scop.ports
     scop.app
+    scop.cli
     scop.utils
 
-# ── utils ─────────────────────────────────────────────────────────────────────
-# utils/ is stdlib-pure; it must not import any domain layer.
-[importlinter:contract:utils-purity]
-name = utils must not import any domain layer
+
+# utils/ — no edge out
+# utils/ is the mechanism layer. It depends on nothing internal.
+# Third-party imports are permitted (enforced separately by ast-grep Rule 1).
+[importlinter:contract:utils]
+name = Utils depend on nothing internal
 type = forbidden
 source_modules =
     scop.utils
 forbidden_modules =
+    scop.models
+    scop.ports
     scop.services
     scop.adapters
-    scop.ports
     scop.app
-    scop.models
+    scop.cli
