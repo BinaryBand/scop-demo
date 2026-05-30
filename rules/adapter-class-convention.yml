@@ -1,0 +1,21 @@
+id: adapter-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in an adapter file must have the 'Adapter' suffix and extend Adapter
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*Adapter[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(Adapter):
+                    $$$
+              - pattern: |
+                  class $NAME(Adapter, $$$):
+                    $$$
+files:
+  - "scop/adapters/**/*_adapter.py"

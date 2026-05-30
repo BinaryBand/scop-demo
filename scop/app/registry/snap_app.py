@@ -4,12 +4,10 @@ from scop.adapters.snapshot_adapter import SnapshotAdapter
 from scop.models.bases import BaseApp
 from scop.models.messages import MSGID, SyslogMessage
 from scop.models.results import StreamingResult
-from scop.services.snapshot_service import (
-    CreateSnapshotService,
-    DiffSnapshotsService,
-    ListSnapshotsService,
-    SnapshotStatusService,
-)
+from scop.services.create_snapshot_service import CreateSnapshotService
+from scop.services.diff_snapshots_service import DiffSnapshotsService
+from scop.services.list_snapshots_service import ListSnapshotsService
+from scop.services.snapshot_status_service import SnapshotStatusService
 
 _COMMANDS = [
     ("snapshot create", "Take a new snapshot"),

@@ -1,0 +1,21 @@
+id: port-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in a port file must have the 'Port' suffix and extend Port
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*Port[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(Port):
+                    $$$
+              - pattern: |
+                  class $NAME(Port, $$$):
+                    $$$
+files:
+  - "scop/ports/**/*_port.py"
