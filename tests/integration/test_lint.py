@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class TestRuff:
     """Ensure the codebase passes ruff linting and formatting checks."""
 
-    PATHS = ["scop/", "tests/"]
+    PATHS = ("scop/", "tests/")
 
     def test_ruff_check(self):
         """Fail if ruff reports any lint violations."""

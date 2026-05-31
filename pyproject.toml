@@ -29,23 +29,25 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "A", "B", "S"] # "D"]
-ignore = ["S404"]
+select = ["RUF", "E", "F", "W", "I", "N", "A", "B", "S"] # "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-
-"tests/**/*.py" = ["S101"]                   # Tests use `assert` idiomatically
-"tests/conftest.py" = ["S101", "S603"]       # conftest _fix() runs trusted dev tools
-"scop/models/bases.py" = ["B024"]            # Port is an intentional marker base
-"scop/utils/proc/__init__.py" = ["S603"]     # subprocess shim — shell never used
+"tests/**/*.py" = ["S101"]              # Tests use `assert` idiomatically
+"tests/conftest.py" = ["S101", "S603"]  # conftest _fix() runs trusted dev tools
+"scop/models/bases.py" = ["B024"]       # Port is an intentional marker base
+"scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
 
 [tool.ty.environment]
 python-version = "3.11"
 extra-paths = []
 root = ["."]
+
+[tool.ty.rules]
+possibly-missing-import = "error"
+unresolved-import = "error"
 
 [tool.ty.src]
 include = ["scop", "tests"]

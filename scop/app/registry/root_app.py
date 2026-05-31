@@ -1,3 +1,4 @@
+# app/registry/root_app.py
 from __future__ import annotations
 
 from scop.app.stream import StreamingResult
@@ -6,12 +7,12 @@ from scop.models.messages import MSGID, SyslogMessage
 
 _VERSION = "0.1.0"
 
-_COMMANDS = [
-    ("snapshot", "Manage and compare snapshots"),
-]
-
 
 class RootApp(BaseApp):
+    def __init__(self, commands: dict[str, str]) -> None:
+        # commands: {name: description} — injected by dispatcher.default()
+        self._commands = commands
+
     async def run(self, args: dict, stream: StreamingResult) -> None:
         stream.emit(
             SyslogMessage(
@@ -22,7 +23,6 @@ class RootApp(BaseApp):
                 data={"title": "scop", "subtitle": "Structured CLI Output Protocol"},
             )
         )
-
         if args.get("version"):
             self._emit_version(stream)
         elif args.get("help"):
@@ -30,7 +30,6 @@ class RootApp(BaseApp):
         else:
             self._emit_version(stream)
             self._emit_help(stream)
-
         end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=None, msg="")
         stream.emit(end)
         stream.resolve(ok=True, data=end)
@@ -56,7 +55,7 @@ class RootApp(BaseApp):
                 data={"id": "help", "label": "scop", "ordered": False},
             )
         )
-        for cmd, desc in _COMMANDS:
+        for cmd, desc in self._commands.items():
             stream.emit(
                 SyslogMessage(
                     pri=6,

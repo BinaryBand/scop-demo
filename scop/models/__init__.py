@@ -3,9 +3,9 @@ from scop.models.messages import MSGID, SyslogMessage
 from scop.models.results import ResolvedResult
 
 __all__ = [
+    "MSGID",
     "Adapter",
     "BaseApp",
-    "MSGID",
     "Port",
     "ResolvedResult",
     "Service",

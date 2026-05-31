@@ -1,5 +1,4 @@
-"""Entry point — the only file permitted to use argparse and sys.exit."""
-
+# scop/cli.py
 from __future__ import annotations
 
 import argparse
@@ -8,62 +7,96 @@ import sys
 
 from scop.app.dispatcher import AppDispatcher
 
+# ── Argument parser ───────────────────────────────────────────────────────────
+
 
 def _build_parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="scop", add_help=False)
-    root.add_argument("-h", "--help", action="store_true")
-    root.add_argument("--version", action="store_true")
-    root.add_argument("-q", "--quiet", action="store_true")
-    root.add_argument("-v", "--verbose", action="store_true")
-    root.add_argument("--json", action="store_true", help="Emit raw NDJSON instead of plain text")
+    p = argparse.ArgumentParser(
+        prog="scop",
+        description="File and directory snapshotter.",
+    )
+    p.add_argument("--verbose", "-v", action="store_true", help="Include debug output")
+    p.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
 
-    subs = root.add_subparsers(dest="command")
+    sub = p.add_subparsers(dest="command")
 
-    # -- snapshot -------------------------------------------------------------
-    snap = subs.add_parser("snapshot", add_help=False)
-    snap.add_argument("-h", "--help", action="store_true")
-    snap.add_argument("--status", action="store_true")
-    snap.add_argument("-l", "--list", action="store_true")
-    snap.add_argument("-a", "--all", action="store_true")
-    snap.add_argument("-q", "--quiet", action="store_true")
-    snap.add_argument("-v", "--verbose", action="store_true")
+    snap = sub.add_parser("snap", help="Take a snapshot of a directory")
+    snap.add_argument("path", nargs="?", default=".", help="Directory to snapshot")
+    snap.add_argument("--dry-run", "-n", action="store_true")
+    snap.add_argument("--recursive", "-r", action="store_true")
 
-    snap_subs = snap.add_subparsers(dest="action")
+    diff = sub.add_parser("diff", help="Compare two snapshots")
+    diff.add_argument("a", help="First snapshot name")
+    diff.add_argument("b", help="Second snapshot name")
 
-    create = snap_subs.add_parser("create", add_help=False)
-    create.add_argument("-h", "--help", action="store_true")
-    create.add_argument("-n", "--dry-run", action="store_true", dest="dry_run")
-    create.add_argument("-v", "--verbose", action="store_true")
+    sub.add_parser("status", help="Show current snapshot state")
+    sub.add_parser("log", help="List all snapshots")
 
-    diff = snap_subs.add_parser("diff", add_help=False)
-    diff.add_argument("-h", "--help", action="store_true")
-    diff.add_argument("--from", dest="from_snap", metavar="SNAP")
-    diff.add_argument("--to", dest="to_snap", metavar="SNAP")
+    restore = sub.add_parser("restore", help="Restore a snapshot")
+    restore.add_argument("name", help="Snapshot to restore")
+    restore.add_argument("--dry-run", "-n", action="store_true")
 
-    return root
+    return p
 
 
-async def _main() -> None:
+# ── Stream renderer ───────────────────────────────────────────────────────────
+
+
+async def _render(stream, *, verbose: bool, quiet: bool) -> bool:
+    """Consume a StreamingResult and print each event's msg field.
+
+    Follows SCOP §4.2 severity rendering:
+        pri 0-3  → stderr          (errors)
+        pri 4    → stderr [WARN]   (warnings)
+        pri 5-6  → stdout          (normal)
+        pri 7    → suppressed      (debug, unless --verbose)
+    """
+    async for event in stream:
+        pri = event.pri
+        msg = event.msg
+        msgid = event.msgid
+
+        if msgid == "PAGE_END":
+            continue
+        if pri == 7 and not verbose:
+            continue
+        if quiet and msgid == "PROCESS_LOG":
+            continue
+
+        if pri <= 3:
+            print(msg, file=sys.stderr)
+        elif pri == 4:
+            print(f"[WARN] {msg}", file=sys.stderr)
+        else:
+            print(msg)
+
+    return stream.resolved.ok
+
+
+# ── Entry points ──────────────────────────────────────────────────────────────
+
+
+async def _main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    ns = parser.parse_args()
+    ns = parser.parse_args(argv)
     args = vars(ns)
 
-    dispatcher = AppDispatcher()
-    stream = await dispatcher.dispatch(args.get("command"), args)
-    use_json = args.get("json", False)
+    command: str | None = args.pop("command")
+    verbose: bool = args.pop("verbose", False)
+    quiet: bool = args.pop("quiet", False)
 
-    async for event in stream:
-        if use_json:
-            print(event.to_ndjson(), flush=True)
-        elif event.msg:
-            print(event.msg, flush=True)
+    dispatcher = AppDispatcher.default()
+    stream = dispatcher.dispatch(command, args)
 
-    if stream.result and not stream.result.ok:
-        sys.exit(1)
+    if command is None:
+        stream = dispatcher.dispatch("", args)
+        ok = await _render(stream, verbose=verbose, quiet=quiet)
+        return 0 if ok else 1
+
+    ok = await _render(stream, verbose=verbose, quiet=quiet)
+    return 0 if ok else 1
 
 
 def main() -> None:
-    try:
-        asyncio.run(_main())
-    except KeyboardInterrupt:
-        sys.exit(130)
+    """Installed entry point: scop = 'scop.cli:main'"""
+    sys.exit(asyncio.run(_main()))

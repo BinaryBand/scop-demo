@@ -37,6 +37,14 @@ ignore_imports =
     scop.app.registry.snap_app -> scop.services.snapshot_status_service
     scop.app.registry.root_app -> scop.models.bases
     scop.app.registry.root_app -> scop.models.messages
+    scop.app.registry.diff_app -> scop.models.bases
+    scop.app.registry.diff_app -> scop.models.messages
+    scop.app.registry.log_app -> scop.models.bases
+    scop.app.registry.log_app -> scop.models.messages
+    scop.app.registry.restore_app -> scop.models.bases
+    scop.app.registry.restore_app -> scop.models.messages
+    scop.app.registry.status_app -> scop.models.bases
+    scop.app.registry.status_app -> scop.models.messages
 
 
 # app/ — edge verbs: wires, types
