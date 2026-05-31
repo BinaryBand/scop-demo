@@ -1,0 +1,54 @@
+---
+# Rule 3 (stem-parity) cannot be enforced here — ast-grep has no filename
+# access at rule evaluation time. See docs/TODO for the pytest gate approach.
+#
+# Rule 5: Every class in ports/ must extend Port.
+# The port-class-convention rule in conventions.yml only covers *_port.py files;
+# this catches every file under ports/, including non-conforming ones like
+# ports/stream.py → IStream(Protocol).
+id: port-must-extend-port
+language: python
+severity: error
+message: >
+  '$NAME' in ports/ must extend Port (Rule 5). If this file is not yet named
+  *_port.py, also rename it and the class to satisfy Rule 3.
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - not:
+        any:
+          - pattern: "class $NAME(Port): $$$"
+          - pattern: "class $NAME(Port, $$$): $$$"
+          - pattern: "class $NAME($$$, Port): $$$"
+files:
+  - "scop/ports/**/*.py"
+---
+# Rule 6: Every class in models/ must be @dataclass(frozen=True) or an Enum subclass.
+# Abstract base classes belong outside models/ — see docs/TODO for the prerequisite move.
+id: models-must-be-value-type
+language: python
+severity: error
+message: >
+  '$NAME' in models/ must be @dataclass(frozen=True) or an Enum subclass (Rule 6).
+  Move abstract base classes to scop/bases.py — see docs/TODO.
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - not:
+        any:
+          - inside:
+              pattern: |
+                @dataclass(frozen=True)
+                class $C($$$):
+                  $$$
+          - pattern: "class $NAME(Enum): $$$"
+          - pattern: "class $NAME(Enum, $$$): $$$"
+          - pattern: "class $NAME($$$, Enum): $$$"
+          - pattern: "class $NAME(StrEnum): $$$"
+          - pattern: "class $NAME(StrEnum, $$$): $$$"
+          - pattern: "class $NAME($$$, StrEnum): $$$"
+          - pattern: "class $NAME(IntEnum): $$$"
+          - pattern: "class $NAME(Flag): $$$"
+files:
+  - "scop/models/**/*.py"
+

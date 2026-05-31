@@ -162,13 +162,21 @@ files:
   - "scop/utils/**/*.py"
 ---
 # Rule 9: MSGID from fixed table only
+# Covers both construction sites (SyslogMessage kwarg) and comparison sites
+# (equality against a `msgid` variable or attribute). The `msgid` name is the
+# structural anchor — no MSGID vocabulary list needed.
 id: msgid-must-use-enum
 language: python
 severity: error
 message: >
   Use MSGID.<value> from the enum — raw strings bypass the fixed-table contract (Rule 9)
 rule:
-  pattern: "SyslogMessage($$$, msgid=$RAW, $$$)"
+  any:
+    - pattern: "SyslogMessage($$$, msgid=$RAW, $$$)"
+    - pattern: "msgid == $RAW"
+    - pattern: "$OBJ.msgid == $RAW"
+    - pattern: "$RAW == msgid"
+    - pattern: "$RAW == $OBJ.msgid"
 constraints:
   RAW:
     kind: string
@@ -182,7 +190,9 @@ message: >
 rule:
   all:
     - any:
-        - pattern: "from scop.utils.$MOD import $$$"
+        - pattern: "from scop.utils.$MOD import $$$" # utils/fs.py
+        - pattern: "from scop.utils.$MOD.$_ import $$$" # utils/fs/__init__.py or utils/fs/reader.py
         - pattern: "import scop.utils.$MOD"
+        - pattern: "import scop.utils.$MOD.$_"
     - not:
         regex: "scop\\.utils\\.(fs|proc|net|fmt|text|env|time|hash|crypto|archive|concurrent|collect)\\b"

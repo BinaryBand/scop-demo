@@ -185,7 +185,7 @@ Full specification: `SCOP.md` §7. The `PROCESS_*` family is the minimum viable 
 
 The `id` field ties events to a named operation. Nested or parallel operations use distinct `id` values — no new types required.
 
-`ResolvedResult.data` must be a `PROCESS_END` message.
+`ResolvedResult.data` must be a `PAGE_END` message.
 
 > `MSGID` must be one of the values defined in `SCOP.md` §7.
 
