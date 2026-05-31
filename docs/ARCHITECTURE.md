@@ -1,4 +1,4 @@
-# Source Architecture
+# Architecture
 
 The goal is to focus on best-practice recommendations that genuinely reduce decision-making. The strongest moves are those that remove the most entropy per unit of added complexity.
 
@@ -8,7 +8,7 @@ The goal is to focus on best-practice recommendations that genuinely reduce deci
 
 Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP.md`.
 
-| Source document | Implements |
+| Document | Implements |
 | --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP.md` §7) | SCOP §7 |
@@ -20,7 +20,7 @@ This is the import-dependency contract.
 
 ```mermaid
 graph TD
-    CLI(["🖥️ [start] cli.py (UI)"])
+    CLI(["🖥️ [start] cli.py"])
     App["🚪 app/ (entrypoint)"]
     Services["🧠 services/ (domain logic)"]
     Ports["🔌 ports/ (interfaces)"]
@@ -88,7 +88,7 @@ All four compose under a single `pre-commit` hook.
 | 4 | **Port↔adapter parity** — every adapter implements the port of the same filename | ast-grep |
 | 5 | **Marker base per layer** — `Port`, `Adapter`, `Service`, `BaseApp` | ast-grep |
 | 6 | **`models/` immutable value types only** — every class must be a `@dataclass(frozen=True)` or an `Enum` subclass; no mutable state; no methods beyond protocol dunders | ruff + ty (frozen dataclasses), ast-grep (Enum subclasses + reject all other class shapes) |
-| 7 | **`cli.py` may only import `AppDispatcher`** | import-linter |
+| 7 | **`cli.py` may only import `AppDispatcher`** — `cli.py` is excluded from the import-linter pipeline as an outside consumer; boundary enforced at symbol level only | ast-grep |
 | 8 | **`argparse` and `sys.exit` only in `cli.py`** | ast-grep |
 | 9 | **MSGID from fixed table only** | ast-grep |
 | 10 | **`utils/` subdirectory allowlist** | ast-grep |

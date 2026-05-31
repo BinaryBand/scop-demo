@@ -1,6 +1,6 @@
 # CLI Contract
 
-**Implements:** SCOP §§6, 8, 9 — see `SCOP_Spec.md` for the full open specification.
+**Implements:** SCOP §§6, 8, 9 — see `SCOP.md` for the full open specification.
 
 Formalises the mapping from CLI input (GNU standard flags + subcommands) to MSGID output. Every input has exactly one defined output contract. This is the machine-enforceable I/O specification.
 

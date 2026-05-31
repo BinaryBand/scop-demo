@@ -4,30 +4,10 @@ root_packages =
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Each contract below enforces one row of the edge contract table.
+# cli.py is excluded from import-linter: boundary enforced at symbol level by ast-grep.
 # Symbol-level rules (AppDispatcher only, argparse, sys.exit) are enforced
 # by ast-grep — import-linter handles layer-level direct imports only.
 # ─────────────────────────────────────────────────────────────────────────────
-
-
-# cli.py — edge verb: dispatches
-# Forbids cli from reaching past app/ into any other layer.
-# Symbol-level enforcement (AppDispatcher only) is handled by ast-grep.
-[importlinter:contract:cli]
-name = CLI may only import app
-type = forbidden
-source_modules =
-    scop.cli
-forbidden_modules =
-    scop.adapters
-    scop.services
-    scop.ports
-    scop.utils
-ignore_imports =
-    scop.app.registry.snap_app -> scop.adapters.snapshot_adapter
-    scop.app.registry.snap_app -> scop.services.create_snapshot_service
-    scop.app.registry.snap_app -> scop.services.diff_snapshots_service
-    scop.app.registry.snap_app -> scop.services.list_snapshots_service
-    scop.app.registry.snap_app -> scop.services.snapshot_status_service
 
 
 # app/ — edge verbs: wires, types

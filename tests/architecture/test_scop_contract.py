@@ -35,7 +35,7 @@ _SCOP_MSGIDS: frozenset[str] = frozenset({
 })
 
 
-def test_msgid_enum_matches_scop_spec() -> None:
+def test_msgid_enum_matches_scop() -> None:
     """MSGID enum must contain exactly the values defined in SCOP.md §7.
 
     Any addition or removal is a breaking wire-format change and requires
