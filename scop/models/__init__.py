@@ -1,6 +1,6 @@
-from scop.framework.bases import Adapter, BaseApp, Port, Service
-from scop.protocol.messages import MSGID, SyslogMessage
-from scop.protocol.results import ResolvedResult
+from scop.models.bases import Adapter, BaseApp, Port, Service
+from scop.models.messages import MSGID, SyslogMessage
+from scop.models.results import ResolvedResult
 
 __all__ = [
     "MSGID",

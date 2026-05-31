@@ -110,14 +110,14 @@ rule:
           $$$
     - pattern: "cast(Any, $$$)"
     - pattern: "cast(object, $$$)"
-# scop/protocol/messages.py is excluded: SyslogMessage.data is an intentionally
+# scop/models/messages.py is excluded: SyslogMessage.data is an intentionally
 # open-ended envelope field (arbitrary structured data per MSGID). Introducing
 # a proper JSON recursive type alias is tracked in docs/TODO.md Rule 6.
 files:
   - "scop/**/*.py"
   - "tests/**/*.py"
 ignores:
-  - "scop/protocol/messages.py"
+  - "scop/models/messages.py"
 ---
 id: no-compatibility-aliases
 language: python

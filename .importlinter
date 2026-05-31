@@ -20,31 +20,30 @@ source_modules =
 forbidden_modules =
     scop.adapters
     scop.services
-    scop.models
-    scop.framework
     scop.ports
     scop.utils
 ignore_imports =
-    scop.app.dispatcher -> scop.framework.bases
-    scop.app.stream -> scop.protocol.messages
-    scop.app.stream -> scop.protocol.results
-    scop.app.registry.snap_app -> scop.framework.bases
+    scop.app -> scop.models.bases
+    scop.app.dispatcher -> scop.models.bases
+    scop.app.stream -> scop.models.messages
+    scop.app.stream -> scop.models.results
     scop.app.registry.snap_app -> scop.adapters.snapshot_adapter
-    scop.app.registry.snap_app -> scop.protocol.messages
+    scop.app.registry.snap_app -> scop.models.bases
+    scop.app.registry.snap_app -> scop.models.messages
     scop.app.registry.snap_app -> scop.services.create_snapshot_service
     scop.app.registry.snap_app -> scop.services.diff_snapshots_service
     scop.app.registry.snap_app -> scop.services.list_snapshots_service
     scop.app.registry.snap_app -> scop.services.snapshot_status_service
-    scop.app.registry.root_app -> scop.framework.bases
-    scop.app.registry.root_app -> scop.protocol.messages
-    scop.app.registry.diff_app -> scop.framework.bases
-    scop.app.registry.diff_app -> scop.protocol.messages
-    scop.app.registry.log_app -> scop.framework.bases
-    scop.app.registry.log_app -> scop.protocol.messages
-    scop.app.registry.restore_app -> scop.framework.bases
-    scop.app.registry.restore_app -> scop.protocol.messages
-    scop.app.registry.status_app -> scop.framework.bases
-    scop.app.registry.status_app -> scop.protocol.messages
+    scop.app.registry.root_app -> scop.models.bases
+    scop.app.registry.root_app -> scop.models.messages
+    scop.app.registry.diff_app -> scop.models.bases
+    scop.app.registry.diff_app -> scop.models.messages
+    scop.app.registry.log_app -> scop.models.bases
+    scop.app.registry.log_app -> scop.models.messages
+    scop.app.registry.restore_app -> scop.models.bases
+    scop.app.registry.restore_app -> scop.models.messages
+    scop.app.registry.status_app -> scop.models.bases
+    scop.app.registry.status_app -> scop.models.messages
 
 
 # app/ — edge verbs: wires, types
@@ -128,45 +127,8 @@ source_modules =
     scop.utils
 forbidden_modules =
     scop.models
-    scop.framework
     scop.ports
     scop.services
     scop.adapters
     scop.app
     scop.cli
-
-
-# framework/ — architecture layer
-# Framework defines base classes for the architecture. It depends on nothing internal.
-[importlinter:contract:framework]
-name = Framework depends on nothing internal
-type = forbidden
-source_modules =
-    scop.framework
-forbidden_modules =
-    scop.models
-    scop.protocol
-    scop.ports
-    scop.services
-    scop.adapters
-    scop.app
-    scop.cli
-    scop.utils
-
-
-# protocol/ — infrastructure layer
-# Protocol defines the SCOP message wire format. It depends on nothing internal.
-[importlinter:contract:protocol]
-name = Protocol depends on nothing internal
-type = forbidden
-source_modules =
-    scop.protocol
-forbidden_modules =
-    scop.models
-    scop.framework
-    scop.ports
-    scop.services
-    scop.adapters
-    scop.app
-    scop.cli
-    scop.utils

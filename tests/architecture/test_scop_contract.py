@@ -5,7 +5,7 @@ be expressed as static analysis rules. Each test cites the SCOP section it
 covers so that the spec and the test stay coupled.
 """
 
-from scop.protocol.messages import MSGID
+from scop.models.messages import MSGID
 
 # §7 — Event Vocabulary: the complete, fixed set of valid MSGIDs.
 # Adding a value to MSGID without adding it here is a breaking protocol change.

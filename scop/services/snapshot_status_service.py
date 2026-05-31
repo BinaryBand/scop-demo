@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from scop.framework.bases import Service
+from scop.models.bases import Service
+from scop.models.messages import MSGID, SyslogMessage
 from scop.ports.snapshot_port import SnapshotPort
 from scop.ports.stream import IStream
-from scop.protocol.messages import MSGID, SyslogMessage
 
 
 class SnapshotStatusService(Service):

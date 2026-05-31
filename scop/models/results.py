@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from scop.protocol.messages import SyslogMessage
+from scop.models.messages import SyslogMessage
 
 
 @dataclass(frozen=True)
