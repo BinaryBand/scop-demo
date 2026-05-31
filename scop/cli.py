@@ -7,6 +7,7 @@ import sys
 
 from scop.app.dispatcher import AppDispatcher
 from scop.app.stream import StreamingResult
+from scop.models.protocol import MSGID
 
 # ── Argument parser ───────────────────────────────────────────────────────────
 
@@ -57,11 +58,11 @@ async def _render(stream: StreamingResult, *, verbose: bool, quiet: bool) -> boo
         msg = event.msg
         msgid = event.msgid
 
-        if msgid == "PAGE_END":
+        if msgid == MSGID.PAGE_END:
             continue
         if pri == 7 and not verbose:
             continue
-        if quiet and msgid == "PROCESS_LOG":
+        if quiet and msgid == MSGID.PROCESS_LOG:
             continue
 
         if pri <= 3:
