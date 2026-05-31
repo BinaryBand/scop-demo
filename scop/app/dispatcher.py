@@ -4,8 +4,8 @@ import asyncio
 
 from scop.app.registry.root_app import RootApp
 from scop.app.registry.snap_app import SnapApp
+from scop.app.stream import StreamingResult
 from scop.models.bases import BaseApp
-from scop.models.results import StreamingResult
 
 
 class AppDispatcher:

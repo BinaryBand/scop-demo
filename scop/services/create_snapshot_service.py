@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from scop.models.bases import Service
 from scop.models.messages import MSGID, SyslogMessage
-from scop.models.results import StreamingResult
 from scop.ports.snapshot_port import SnapshotPort
+from scop.ports.stream import IStream
 
 
 class CreateSnapshotService(Service):
@@ -12,7 +12,7 @@ class CreateSnapshotService(Service):
         self._room = room
         self._dry_run = dry_run
 
-    async def run(self, stream: StreamingResult) -> None:
+    async def run(self, stream: IStream) -> None:
         r = self._room
         dr = self._dry_run
         suffix = " (dry run)" if dr else ""

@@ -26,18 +26,17 @@ forbidden_modules =
 ignore_imports =
     scop.app -> scop.models.bases
     scop.app.dispatcher -> scop.models.bases
-    scop.app.dispatcher -> scop.models.results
+    scop.app.stream -> scop.models.messages
+    scop.app.stream -> scop.models.results
     scop.app.registry.snap_app -> scop.adapters.snapshot_adapter
     scop.app.registry.snap_app -> scop.models.bases
     scop.app.registry.snap_app -> scop.models.messages
-    scop.app.registry.snap_app -> scop.models.results
     scop.app.registry.snap_app -> scop.services.create_snapshot_service
     scop.app.registry.snap_app -> scop.services.diff_snapshots_service
     scop.app.registry.snap_app -> scop.services.list_snapshots_service
     scop.app.registry.snap_app -> scop.services.snapshot_status_service
     scop.app.registry.root_app -> scop.models.bases
     scop.app.registry.root_app -> scop.models.messages
-    scop.app.registry.root_app -> scop.models.results
 
 
 # app/ — edge verbs: wires, types

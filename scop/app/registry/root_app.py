@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from scop.app.stream import StreamingResult
 from scop.models.bases import BaseApp
 from scop.models.messages import MSGID, SyslogMessage
-from scop.models.results import StreamingResult
 
 _VERSION = "0.1.0"
 

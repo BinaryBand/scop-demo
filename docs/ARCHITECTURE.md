@@ -113,10 +113,15 @@ classDiagram
         -_resolve(command: str) BaseApp
     }
 
-    class StreamingResult {
+    class IStream {
+        <<Protocol, ports/stream.py>>
         +emit(event: SyslogMessage) void
         +resolve(ok: bool, data: SyslogMessage) void
         +__aiter__() AsyncIterator~SyslogMessage~
+    }
+
+    class StreamingResult {
+        <<app/stream.py>>
     }
 
     class SyslogMessage {
@@ -130,11 +135,12 @@ classDiagram
 
     class BaseApp {
         <<abstract>>
-        +run(args: dict, stream: StreamingResult) void
+        +run(args: dict, stream: IStream) void
     }
 
     AppDispatcher --> BaseApp : resolves & calls run()
     AppDispatcher --> StreamingResult : creates & passes down
+    StreamingResult ..|> IStream : implements
     StreamingResult --> SyslogMessage : emits
     StreamingResult --> ResolvedResult : terminates with
     BaseApp <|-- SnapApp
@@ -156,28 +162,37 @@ classDiagram
 
     class Service {
         <<abstract>>
-        +run(stream: StreamingResult) void
+        +run(stream: IStream) void
     }
 
     Adapter --> Port : declares
-    Service --> Port : calls through
+    Service --> IStream : calls through
 ```
 
 | Base | Lives in | Enforcement hook |
 | --- | --- | --- |
 | `Port` | `ports/` | Every class in `ports/` must subclass `Port` |
 | `Adapter` | `adapters/` | Must declare `port: ClassVar[type[Port]]` — enables parity check |
-| `Service` | `services/` | Must implement `run(stream: StreamingResult)` — stream is the result channel |
+| `Service` | `services/` | Must implement `run(stream: IStream)` — stream is the result channel |
 
-`Service.run()` returning `void` eliminates a separate result type — output flows through `StreamingResult` events, not return values.
+`Service.run()` returning `void` eliminates a separate result type — output flows through `IStream` events, not return values. `IStream` (`ports/stream.py`) is the interface services depend on; `StreamingResult` (`app/stream.py`) is the concrete implementation only `app/` and `cli.py` see.
 
 ## MSGIDs
 
-Full specification: `SCOP.md` §7. Five families — `PAGE`, `PROCESS`, `SCALAR`, `LIST`, `TABLE` — cover all output types. Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END` (SCOP §11).
+Full specification: `SCOP.md` §7. The `PROCESS_*` family is the minimum viable set for any command that runs an operation.
 
-`ResolvedResult.data` must be the `PAGE_END` message that closes the stream.
+| MSGID | Meaning | Required fields |
+| --- | --- | --- |
+| `PROCESS_BEGIN` | Start a named operation | `id`, `label` |
+| `PROCESS_UPDATE` | Update progress | `id`, `current` |
+| `PROCESS_END` | Complete an operation | `id`, `ok` |
+| `PROCESS_LOG` | Freeform log line within an operation | `id`, `message` |
 
-> `MSGID` must be one of the values defined in `SCOP.md` §7. Enforced by `tests/architecture/test_scop_contract.py`.
+The `id` field ties events to a named operation. Nested or parallel operations use distinct `id` values — no new types required.
+
+`ResolvedResult.data` must be a `PROCESS_END` message.
+
+> `MSGID` must be one of the values defined in `SCOP.md` §7.
 
 ## Wire Format
 

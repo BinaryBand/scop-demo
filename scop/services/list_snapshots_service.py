@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from scop.models.bases import Service
 from scop.models.messages import MSGID, SyslogMessage
-from scop.models.results import StreamingResult
 from scop.ports.snapshot_port import SnapshotPort
+from scop.ports.stream import IStream
 
 
 class ListSnapshotsService(Service):
@@ -12,7 +12,7 @@ class ListSnapshotsService(Service):
         self._room = room
         self._expand = expand
 
-    async def run(self, stream: StreamingResult) -> None:
+    async def run(self, stream: IStream) -> None:
         snaps = self._port.list_snapshots(expand=self._expand)
         r = self._room
         stream.emit(
