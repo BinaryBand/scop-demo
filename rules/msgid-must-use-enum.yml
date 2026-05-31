@@ -1,0 +1,10 @@
+id: msgid-must-use-enum
+language: python
+severity: error
+message: >
+  Use MSGID.<value> from the enum — raw strings bypass the fixed-table contract (Rule 9)
+rule:
+  pattern: "SyslogMessage($$$, msgid=$RAW, $$$)"
+constraints:
+  RAW:
+    kind: string

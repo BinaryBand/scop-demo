@@ -22,32 +22,22 @@ class ListSnapshotsService(Service):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TABLE_DECLARE,
+                msgid=MSGID.TASK_BEGIN,
                 room=r,
                 msg="Snapshots",
-                data={
-                    "id": "snaps",
-                    "label": "Snapshots",
-                    "schema": ["name", "files", "size", "date"],
-                },
+                data={"id": "snaps", "title": "Snapshots"},
             )
         )
         for snap in snaps:
             stream.emit(
                 SyslogMessage(
                     pri=6,
-                    msgid=MSGID.TABLE_ROW,
+                    msgid=MSGID.TASK_LOG,
                     room=r,
                     msg=f"{snap.name:<12}  {snap.files} files  {snap.size}  {snap.date}",
                     data={
                         "id": "snaps",
-                        "row_id": snap.name,
-                        "values": {
-                            "name": snap.name,
-                            "files": snap.files,
-                            "size": snap.size,
-                            "date": snap.date,
-                        },
+                        "message": f"{snap.name:<12}  {snap.files} files  {snap.size}  {snap.date}",
                     },
                 )
             )
@@ -55,9 +45,9 @@ class ListSnapshotsService(Service):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TABLE_END,
+                msgid=MSGID.TASK_END,
                 room=r,
                 msg=f"{n} snapshot{'s' if n != 1 else ''}",
-                data={"id": "snaps"},
+                data={"id": "snaps", "ok": True},
             )
         )

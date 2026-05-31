@@ -29,33 +29,29 @@ class DiffSnapshotsService(Service):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TABLE_DECLARE,
+                msgid=MSGID.TASK_BEGIN,
                 room=r,
                 msg="Diff",
-                data={"id": "diff", "label": "Diff", "schema": ["path", "status"]},
+                data={"id": "diff", "title": "Diff"},
             )
         )
         for rec in records:
             stream.emit(
                 SyslogMessage(
                     pri=6,
-                    msgid=MSGID.TABLE_ROW,
+                    msgid=MSGID.TASK_LOG,
                     room=r,
                     msg=f"{rec.status:<10}  {rec.path}",
-                    data={
-                        "id": "diff",
-                        "row_id": rec.path,
-                        "values": {"path": rec.path, "status": rec.status},
-                    },
+                    data={"id": "diff", "message": f"{rec.status:<10}  {rec.path}"},
                 )
             )
         n = len(records)
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TABLE_END,
+                msgid=MSGID.TASK_END,
                 room=r,
                 msg=f"{n} change{'s' if n != 1 else ''}",
-                data={"id": "diff"},
+                data={"id": "diff", "ok": True},
             )
         )

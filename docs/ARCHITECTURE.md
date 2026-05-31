@@ -77,7 +77,7 @@ All four compose under a single `pre-commit` hook.
 | 3 | **One class per file, name = role** — `*_adapter.py` → `FooAdapter(Adapter)`, same for service/port/app | ast-grep |
 | 4 | **Port↔adapter parity** — every adapter implements the port of the same filename | ast-grep |
 | 5 | **Marker base per layer** — `Port`, `Adapter`, `Service`, `BaseApp` | ast-grep |
-| 6 | **`models/` frozen, behavior-free** | ruff + ty |
+| 6 | **`models/` frozen, behavior-free** — `StreamingResult` is an intentional exception: it is a stateful transport type housed in `models/` for import-graph reasons (services need it but cannot import from `app/`) | ruff + ty |
 | 7 | **`cli.py` may only import `AppDispatcher`** | import-linter |
 | 8 | **`argparse` and `sys.exit` only in `cli.py`** | ast-grep |
 | 9 | **MSGID from fixed table only** | ast-grep |

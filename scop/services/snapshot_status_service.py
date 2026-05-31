@@ -21,42 +21,27 @@ class SnapshotStatusService(Service):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.SCALAR_SET,
+                msgid=MSGID.TASK_LOG,
                 room=r,
                 msg=f"Last snapshot: {stats.last_snap or 'never'}",
-                data={
-                    "id": "last_snap",
-                    "label": "Last snapshot",
-                    "value": stats.last_snap or "never",
-                    "type": "string",
-                },
+                data={"id": r, "message": f"Last snapshot: {stats.last_snap or 'never'}"},
             )
         )
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.SCALAR_SET,
+                msgid=MSGID.TASK_LOG,
                 room=r,
                 msg=f"Tracked files: {stats.tracked}",
-                data={
-                    "id": "tracked",
-                    "label": "Tracked files",
-                    "value": stats.tracked,
-                    "type": "number",
-                },
+                data={"id": r, "message": f"Tracked files: {stats.tracked}"},
             )
         )
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.SCALAR_SET,
+                msgid=MSGID.TASK_LOG,
                 room=r,
                 msg=f"Changed since last snap: {stats.changed}",
-                data={
-                    "id": "changed",
-                    "label": "Changed since last snap",
-                    "value": stats.changed,
-                    "type": "number",
-                },
+                data={"id": r, "message": f"Changed since last snap: {stats.changed}"},
             )
         )
