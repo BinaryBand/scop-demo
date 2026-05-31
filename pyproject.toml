@@ -36,7 +36,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]              # Tests use `assert` idiomatically
-"tests/conftest.py" = ["S101", "S603"]  # conftest _fix() runs trusted dev tools
+"tests/conftest.py" = ["S101"]          # conftest _fix() runs trusted dev tools
 "scop/models/bases.py" = ["B024"]       # Port is an intentional marker base
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
 
