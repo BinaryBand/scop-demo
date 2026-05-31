@@ -33,7 +33,9 @@ rule:
         class $NAME(Adapter):
             $$$BODY
     - not:
-        regex: "port: ClassVar"
+        pattern: |
+          class $NAME(Adapter):
+            port: ClassVar
 files:
   - "scop/adapters/**/*.py"
 ---

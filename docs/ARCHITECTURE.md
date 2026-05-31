@@ -6,12 +6,13 @@ The goal is to focus on best-practice recommendations that genuinely reduce deci
 
 ## Standards
 
-Sempy's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP.md`.
+Sempy's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP_Spec.md`.
 
 | Sempy document | Implements |
-| --- | --- |
+|---|---|
 | Wire Format (this doc) | SCOP §5 |
-| Event vocabulary (`SCOP.md` §7) | SCOP §7 |
+| Event vocabulary (`SCOP_Spec.md` §7) | SCOP §7 |
+| CLI Contract (`CLI_Contract.md`) | SCOP §§6, 8, 9 |
 
 ## Dependency Diagram
 
@@ -86,7 +87,7 @@ All four compose under a single `pre-commit` hook.
 | 3 | **One class per file, name = role** — `*_adapter.py` → `FooAdapter(Adapter)`, same for service/port/app | ast-grep |
 | 4 | **Port↔adapter parity** — every adapter implements the port of the same filename | ast-grep |
 | 5 | **Marker base per layer** — `Port`, `Adapter`, `Service`, `BaseApp` | ast-grep |
-| 6 | **`models/` frozen, behavior-free** | ruff + ty |
+| 6 | **`models/` immutable value types only** — every class must be a `@dataclass(frozen=True)` or an `Enum` subclass; no mutable state; no methods beyond protocol dunders | ruff + ty (frozen dataclasses), ast-grep (Enum subclasses + reject all other class shapes) |
 | 7 | **`cli.py` may only import `AppDispatcher`** | import-linter |
 | 8 | **`argparse` and `sys.exit` only in `cli.py`** | ast-grep |
 | 9 | **MSGID from fixed table only** | ast-grep |
@@ -113,15 +114,10 @@ classDiagram
         -_resolve(command: str) BaseApp
     }
 
-    class IStream {
-        <<Protocol, ports/stream.py>>
+    class StreamingResult {
         +emit(event: SyslogMessage) void
         +resolve(ok: bool, data: SyslogMessage) void
         +__aiter__() AsyncIterator~SyslogMessage~
-    }
-
-    class StreamingResult {
-        <<app/stream.py>>
     }
 
     class SyslogMessage {
@@ -135,12 +131,11 @@ classDiagram
 
     class BaseApp {
         <<abstract>>
-        +run(args: dict, stream: IStream) void
+        +run(args: dict, stream: StreamingResult) void
     }
 
     AppDispatcher --> BaseApp : resolves & calls run()
     AppDispatcher --> StreamingResult : creates & passes down
-    StreamingResult ..|> IStream : implements
     StreamingResult --> SyslogMessage : emits
     StreamingResult --> ResolvedResult : terminates with
     BaseApp <|-- SnapApp
@@ -162,24 +157,24 @@ classDiagram
 
     class Service {
         <<abstract>>
-        +run(stream: IStream) void
+        +run(stream: StreamingResult) void
     }
 
     Adapter --> Port : declares
-    Service --> IStream : calls through
+    Service --> Port : calls through
 ```
 
 | Base | Lives in | Enforcement hook |
 | --- | --- | --- |
 | `Port` | `ports/` | Every class in `ports/` must subclass `Port` |
 | `Adapter` | `adapters/` | Must declare `port: ClassVar[type[Port]]` — enables parity check |
-| `Service` | `services/` | Must implement `run(stream: IStream)` — stream is the result channel |
+| `Service` | `services/` | Must implement `run(stream: StreamingResult)` — stream is the result channel |
 
-`Service.run()` returning `void` eliminates a separate result type — output flows through `IStream` events, not return values. `IStream` (`ports/stream.py`) is the interface services depend on; `StreamingResult` (`app/stream.py`) is the concrete implementation only `app/` and `cli.py` see.
+`Service.run()` returning `void` eliminates a separate result type — output flows through `StreamingResult` events, not return values.
 
 ## MSGIDs
 
-Full specification: `SCOP.md` §7. The `PROCESS_*` family is the minimum viable set for any command that runs an operation.
+Full specification: `SCOP_Spec.md` §7. The `PROCESS_*` family is the minimum viable set for any command that runs an operation.
 
 | MSGID | Meaning | Required fields |
 | --- | --- | --- |
@@ -192,7 +187,7 @@ The `id` field ties events to a named operation. Nested or parallel operations u
 
 `ResolvedResult.data` must be a `PROCESS_END` message.
 
-> `MSGID` must be one of the values defined in `SCOP.md` §7.
+> `MSGID` must be one of the values defined in `SCOP_Spec.md` §7.
 
 ## Wire Format
 
@@ -207,6 +202,7 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
+> Full vocabulary: `SCOP_Spec.md` §7. Page template and flag contracts: `CLI_Contract.md`.
 
 ## Utils
 
