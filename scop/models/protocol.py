@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import TypeAlias, Union
+
+JsonValue: TypeAlias = Union[str, int, float, bool, dict[str, "JsonValue"], list["JsonValue"], None]
 
 
 class MSGID(StrEnum):
@@ -39,10 +41,10 @@ class SyslogMessage:
     msgid: MSGID
     room: str | None
     msg: str
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, JsonValue] = field(default_factory=dict)
 
     def to_ndjson(self) -> str:
-        payload: dict[str, Any] = {
+        payload: dict[str, JsonValue] = {
             "pri": self.pri,
             "msgid": self.msgid,
             "room": self.room,
