@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from scop.adapters.snapshot_adapter import SnapshotAdapter
 from scop.app.stream import StreamingResult
-from scop.models.bases import BaseApp
-from scop.models.messages import MSGID, SyslogMessage
+from scop.framework.bases import BaseApp
+from scop.protocol.messages import MSGID, SyslogMessage
 from scop.services.create_snapshot_service import CreateSnapshotService
 from scop.services.diff_snapshots_service import DiffSnapshotsService
 from scop.services.list_snapshots_service import ListSnapshotsService

@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import AsyncGenerator, AsyncIterator
 
-from scop.models.messages import SyslogMessage
-from scop.models.results import ResolvedResult
+from scop.protocol.messages import SyslogMessage
+from scop.protocol.results import ResolvedResult
 
 
 class StreamingResult:
