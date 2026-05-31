@@ -1,3 +1,15 @@
+# Rule 1:  deferred — no gate yet (docs/TODO)
+# Rule 2:  import-linter (.importlinter)
+# Rule 3:  one-class-per-role-file
+# Rule 4:  adapter-must-declare-port
+# Rule 5:  adapter/service/port/app-class-convention, port-must-extend-port
+# Rule 6:  models-must-be-value-type; ruff ANN, B024; ty
+# Rule 7:  deferred — no gate yet (docs/TODO)
+# Rule 8:  no-argparse-outside-cli, no-sys-exit-outside-cli
+# Rule 9:  msgid-must-use-enum
+# Rule 10: utils-allowlist
+# Rule 11: deferred — no gate yet (docs/TODO)
+# Rule 12: ruff TID banned-api, FA102
 ---
 # Rule 3: One class per role file
 id: one-class-per-role-file
@@ -131,13 +143,62 @@ rule:
 files:
   - "scop/app/**/*_app.py"
 ---
+# Rule 5 (extension): Every class in ports/ must extend Port.
+# port-class-convention above only covers *_port.py files; this catches every
+# file under ports/, including non-conforming ones like stream.py → IStream(Protocol).
+id: port-must-extend-port
+language: python
+severity: error
+message: >
+  '$NAME' in ports/ must extend Port (Rule 5). If this file is not yet named
+  *_port.py, also rename it and the class to satisfy Rule 3.
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - not:
+        any:
+          - pattern: "class $NAME(Port): $$$"
+          - pattern: "class $NAME(Port, $$$): $$$"
+          - pattern: "class $NAME($$$, Port): $$$"
+files:
+  - "scop/ports/**/*.py"
+---
+# Rule 6: Every class in models/ must be @dataclass(frozen=True) or an Enum subclass.
+id: models-must-be-value-type
+language: python
+severity: error
+message: >
+  '$NAME' in models/ must be @dataclass(frozen=True) or an Enum subclass (Rule 6).
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - not:
+        any:
+          - inside:
+              pattern: |
+                @dataclass(frozen=True)
+                class $C($$$):
+                  $$$
+          - pattern: "class $NAME(Enum): $$$"
+          - pattern: "class $NAME(Enum, $$$): $$$"
+          - pattern: "class $NAME($$$, Enum): $$$"
+          - pattern: "class $NAME(StrEnum): $$$"
+          - pattern: "class $NAME(StrEnum, $$$): $$$"
+          - pattern: "class $NAME($$$, StrEnum): $$$"
+          - pattern: "class $NAME(IntEnum): $$$"
+          - pattern: "class $NAME(Flag): $$$"
+files:
+  - "scop/models/**/*.py"
+---
 # Rule 8: argparse and sys.exit only in cli.py
 id: no-argparse-outside-cli
 language: python
 severity: error
 message: argparse may only be imported in cli.py (ARCHITECTURE.md convention 8)
 rule:
-  pattern: import argparse
+  any:
+    - pattern: import argparse
+    - pattern: "from argparse import $$$"
 files:
   - "scop/adapters/**/*.py"
   - "scop/app/**/*.py"
