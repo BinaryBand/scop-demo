@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Protocol
 
-from scop.models.messages import SyslogMessage
+from scop.models.protocol import SyslogMessage
 
 
 class IStream(Protocol):

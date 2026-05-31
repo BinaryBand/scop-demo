@@ -1,9 +1,9 @@
 # app/registry/root_app.py
 from __future__ import annotations
 
+from scop.app.bases import BaseApp
 from scop.app.stream import StreamingResult
-from scop.models.bases import BaseApp
-from scop.models.messages import MSGID, SyslogMessage
+from scop.models.protocol import MSGID, SyslogMessage
 
 _VERSION = "0.1.0"
 

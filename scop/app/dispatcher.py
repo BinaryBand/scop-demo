@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+from scop.app.bases import BaseApp
 from scop.app.stream import StreamingResult
-from scop.models.bases import BaseApp
 
 
 class AppDispatcher:

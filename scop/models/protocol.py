@@ -50,3 +50,9 @@ class SyslogMessage:
         }
         payload.update(self.data)
         return json.dumps(payload)
+
+
+@dataclass(frozen=True)
+class ResolvedResult:
+    ok: bool
+    data: SyslogMessage  # must be a PAGE_END message (SCOP §11)
