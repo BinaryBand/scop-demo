@@ -173,20 +173,11 @@ classDiagram
 
 ## MSGIDs
 
-Full specification: `SCOP.md` §7. The `PROCESS_*` family is the minimum viable set for any command that runs an operation.
+Full specification: `SCOP.md` §7. Five families — `PAGE`, `PROCESS`, `SCALAR`, `LIST`, `TABLE` — cover all output types. Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END` (SCOP §11).
 
-| MSGID | Meaning | Required fields |
-| --- | --- | --- |
-| `PROCESS_BEGIN` | Start a named operation | `id`, `label` |
-| `PROCESS_UPDATE` | Update progress | `id`, `current` |
-| `PROCESS_END` | Complete an operation | `id`, `ok` |
-| `PROCESS_LOG` | Freeform log line within an operation | `id`, `message` |
+`ResolvedResult.data` must be the `PAGE_END` message that closes the stream.
 
-The `id` field ties events to a named operation. Nested or parallel operations use distinct `id` values — no new types required.
-
-`ResolvedResult.data` must be a `PROCESS_END` message.
-
-> `MSGID` must be one of the values defined in `SCOP.md` §7.
+> `MSGID` must be one of the values defined in `SCOP.md` §7. Enforced by `tests/architecture/test_scop_contract.py`.
 
 ## Wire Format
 

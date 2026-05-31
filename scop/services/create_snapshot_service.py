@@ -21,13 +21,13 @@ class CreateSnapshotService(Service):
         dr = self._dry_run
         suffix = " (dry run)" if dr else ""
 
-        begin: dict = {"id": "snap", "title": f"Snapshotting{suffix}"}
+        begin: dict = {"id": "snap", "label": f"Snapshotting{suffix}"}
         if dr:
             begin["dry_run"] = True
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_BEGIN,
+                msgid=MSGID.PROCESS_BEGIN,
                 room=r,
                 msg=f"Starting snapshot{suffix}",
                 data=begin,
@@ -42,7 +42,7 @@ class CreateSnapshotService(Service):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_END,
+                msgid=MSGID.PROCESS_END,
                 room=r,
                 msg=f"Snapshot complete{suffix} — {snap.name} ({snap.files} files, {snap.size})",
                 data=end,

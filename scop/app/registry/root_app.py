@@ -16,10 +16,10 @@ class RootApp(BaseApp):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_BEGIN,
+                msgid=MSGID.PAGE_BEGIN,
                 room=None,
                 msg="=== scop ===",
-                data={"id": "scop", "title": "scop"},
+                data={"title": "scop", "subtitle": "Structured CLI Output Protocol"},
             )
         )
 
@@ -31,13 +31,7 @@ class RootApp(BaseApp):
             self._emit_version(stream)
             self._emit_help(stream)
 
-        end = SyslogMessage(
-            pri=6,
-            msgid=MSGID.TASK_END,
-            room=None,
-            msg="",
-            data={"id": "scop", "ok": True},
-        )
+        end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=None, msg="")
         stream.emit(end)
         stream.resolve(ok=True, data=end)
 
@@ -45,10 +39,10 @@ class RootApp(BaseApp):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_LOG,
+                msgid=MSGID.SCALAR_SET,
                 room=None,
                 msg=f"scop {_VERSION}",
-                data={"id": "scop", "message": f"scop {_VERSION}"},
+                data={"id": "version", "label": "version", "value": _VERSION, "type": "string"},
             )
         )
 
@@ -56,28 +50,32 @@ class RootApp(BaseApp):
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_BEGIN,
+                msgid=MSGID.LIST_DECLARE,
                 room=None,
                 msg="Commands",
-                data={"id": "help", "title": "scop"},
+                data={"id": "help", "label": "scop", "ordered": False},
             )
         )
         for cmd, desc in _COMMANDS:
             stream.emit(
                 SyslogMessage(
                     pri=6,
-                    msgid=MSGID.TASK_LOG,
+                    msgid=MSGID.LIST_APPEND,
                     room=None,
                     msg=f"  {cmd:<12}{desc}",
-                    data={"id": "help", "message": f"{cmd}: {desc}"},
+                    data={
+                        "id": "help",
+                        "item_id": cmd,
+                        "value": {"command": cmd, "description": desc},
+                    },
                 )
             )
         stream.emit(
             SyslogMessage(
                 pri=6,
-                msgid=MSGID.TASK_END,
+                msgid=MSGID.LIST_END,
                 room=None,
                 msg="",
-                data={"id": "help", "ok": True},
+                data={"id": "help"},
             )
         )

@@ -10,7 +10,7 @@ from scop.models.messages import SyslogMessage
 @dataclass(frozen=True)
 class ResolvedResult:
     ok: bool
-    data: SyslogMessage  # must be a TASK_END message
+    data: SyslogMessage  # must be a PAGE_END message (SCOP §11)
 
 
 class StreamingResult:
