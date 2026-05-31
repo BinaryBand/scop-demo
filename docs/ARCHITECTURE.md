@@ -1,8 +1,17 @@
-# Architecture
+# Sempy Architecture
 
 The goal is to focus on best-practice recommendations that genuinely reduce decision-making. The strongest moves are those that remove the most entropy per unit of added complexity.
 
 > **Meta-rule:** every rule in this document must be machine-enforceable. Rules that cannot yet be enforced mechanically are marked *(deferred)* and excluded from the toolchain until a concrete gate can be defined.
+
+## Standards
+
+Sempy's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP.md`.
+
+| Sempy document | Implements |
+| --- | --- |
+| Wire Format (this doc) | SCOP §5 |
+| Event vocabulary (`SCOP.md` §7) | SCOP §7 |
 
 ## Dependency Diagram
 
@@ -10,24 +19,24 @@ This is the import-dependency contract.
 
 ```mermaid
 graph TD
-  CLI(["🖥️ [start] cli.py (UI)"])
-  App["🚪 app/ (entrypoint)"]
-  Services["🧠 services/ (domain logic)"]
-  Ports["🔌 ports/ (interfaces)"]
-  Adapters["🔧 adapters/ (driven adapters)"]
-  Models["📋 models/ (domain types)"]
-  Utils["🛠️ utils/ (infrastructure)"]
+    CLI(["🖥️ [start] cli.py (UI)"])
+    App["🚪 app/ (entrypoint)"]
+    Services["🧠 services/ (domain logic)"]
+    Ports["🔌 ports/ (interfaces)"]
+    Adapters["🔧 adapters/ (driven adapters)"]
+    Models["📋 models/ (domain types)"]
+    Utils["🛠️ utils/ (infrastructure)"]
 
-  CLI -->|"dispatches"| App
-  App -->|"wires"| Services
-  App -->|"wires"| Adapters
-  App -.->|"types"| Ports
-  Services -.->|"calls"| Ports
-  Services -->|"reads"| Models
-  Adapters -.->|"implements"| Ports
-  Adapters -->|"reads"| Models
-  Adapters -->|"uses"| Utils
-  Ports -.->|"types"| Models
+    CLI -->|"dispatches"| App
+    App -->|"wires"| Services
+    App -->|"wires"| Adapters
+    App -.->|"types"| Ports
+    Services -.->|"calls"| Ports
+    Services -->|"reads"| Models
+    Adapters -.->|"implements"| Ports
+    Adapters -->|"reads"| Models
+    Adapters -->|"uses"| Utils
+    Ports -.->|"types"| Models
 ```
 
 **Edge contract** — each verb names the only permitted coupling for that edge:
@@ -60,7 +69,7 @@ Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concr
 | Tool | Role | Config |
 | --- | --- | --- |
 | `import-linter` | Import layer contract | `.importlinter` |
-| `ast-grep` | Structural + pattern rules | `rules/*.yml` |
+| `ast-grep` | Structural + pattern rules | `sgconfig.yml`, `rules/*.yml` |
 | `ruff` | Linting + formatting | `pyproject.toml` |
 | `ty` | Type checking | `pyproject.toml` |
 
@@ -77,7 +86,7 @@ All four compose under a single `pre-commit` hook.
 | 3 | **One class per file, name = role** — `*_adapter.py` → `FooAdapter(Adapter)`, same for service/port/app | ast-grep |
 | 4 | **Port↔adapter parity** — every adapter implements the port of the same filename | ast-grep |
 | 5 | **Marker base per layer** — `Port`, `Adapter`, `Service`, `BaseApp` | ast-grep |
-| 6 | **`models/` frozen, behavior-free** — `StreamingResult` is an intentional exception: it is a stateful transport type housed in `models/` for import-graph reasons (services need it but cannot import from `app/`) | ruff + ty |
+| 6 | **`models/` frozen, behavior-free** | ruff + ty |
 | 7 | **`cli.py` may only import `AppDispatcher`** | import-linter |
 | 8 | **`argparse` and `sys.exit` only in `cli.py`** | ast-grep |
 | 9 | **MSGID from fixed table only** | ast-grep |
@@ -98,60 +107,60 @@ app/
 
 ```mermaid
 classDiagram
-  class AppDispatcher {
-    -registry: dict[str, BaseApp]
-    +dispatch(command: str, args: dict) StreamingResult
-    -_resolve(command: str) BaseApp
-  }
+    class AppDispatcher {
+        -registry: dict[str, BaseApp]
+        +dispatch(command: str, args: dict) StreamingResult
+        -_resolve(command: str) BaseApp
+    }
 
-  class StreamingResult {
-    +emit(event: SyslogMessage) void
-    +resolve(ok: bool, data: SyslogMessage) void
-    +__aiter__() AsyncIterator~SyslogMessage~
-  }
+    class StreamingResult {
+        +emit(event: SyslogMessage) void
+        +resolve(ok: bool, data: SyslogMessage) void
+        +__aiter__() AsyncIterator~SyslogMessage~
+    }
 
-  class SyslogMessage {
-    <<RFC 5424>>
-  }
+    class SyslogMessage {
+        <<RFC 5424>>
+    }
 
-  class ResolvedResult {
-    +ok: bool
-    +data: SyslogMessage
-  }
+    class ResolvedResult {
+        +ok: bool
+        +data: SyslogMessage
+    }
 
-  class BaseApp {
-    <<abstract>>
-    +run(args: dict, stream: StreamingResult) void
-  }
+    class BaseApp {
+        <<abstract>>
+        +run(args: dict, stream: StreamingResult) void
+    }
 
-  AppDispatcher --> BaseApp : resolves & calls run()
-  AppDispatcher --> StreamingResult : creates & passes down
-  StreamingResult --> SyslogMessage : emits
-  StreamingResult --> ResolvedResult : terminates with
-  BaseApp <|-- SnapApp
-  BaseApp <|-- DiffApp
+    AppDispatcher --> BaseApp : resolves & calls run()
+    AppDispatcher --> StreamingResult : creates & passes down
+    StreamingResult --> SyslogMessage : emits
+    StreamingResult --> ResolvedResult : terminates with
+    BaseApp <|-- SnapApp
+    BaseApp <|-- DiffApp
 ```
 
 ## Marker Bases
 
 ```mermaid
 classDiagram
-  class Port {
-    <<abstract>>
-  }
+    class Port {
+        <<abstract>>
+    }
 
-  class Adapter {
-    <<abstract>>
-    +port: ClassVar~type[Port]~
-  }
+    class Adapter {
+        <<abstract>>
+        +port: ClassVar~type[Port]~
+    }
 
-  class Service {
-    <<abstract>>
-    +run(stream: StreamingResult) void
-  }
+    class Service {
+        <<abstract>>
+        +run(stream: StreamingResult) void
+    }
 
-  Adapter --> Port : declares
-  Service --> Port : calls through
+    Adapter --> Port : declares
+    Service --> Port : calls through
 ```
 
 | Base | Lives in | Enforcement hook |
@@ -164,34 +173,34 @@ classDiagram
 
 ## MSGIDs
 
-Fixed message identifiers for `SyslogMessage` events. Modelled on LSP `$/progress` (`begin`, `report`, `end`), expressed as RFC 5424 `STRUCTURED-DATA`.
+Full specification: `SCOP.md` §7. The `PROCESS_*` family is the minimum viable set for any command that runs an operation.
 
-| MSGID | Meaning | STRUCTURED-DATA fields |
+| MSGID | Meaning | Required fields |
 | --- | --- | --- |
-| `TASK_BEGIN` | Start a named task | `id`, `title` |
-| `TASK_PROGRESS` | Update progress on a task | `id`, `percent`, `message` |
-| `TASK_END` | Complete a named task | `id`, `ok` |
-| `TASK_LOG` | Freeform log line within a task | `id`, `message` |
+| `PROCESS_BEGIN` | Start a named operation | `id`, `label` |
+| `PROCESS_UPDATE` | Update progress | `id`, `current` |
+| `PROCESS_END` | Complete an operation | `id`, `ok` |
+| `PROCESS_LOG` | Freeform log line within an operation | `id`, `message` |
 
-The `id` field ties events to a named task. Nested or parallel tasks are expressed by using distinct `id` values — no new types required.
+The `id` field ties events to a named operation. Nested or parallel operations use distinct `id` values — no new types required.
 
-`ResolvedResult.data` must be a `TASK_END` message.
+`ResolvedResult.data` must be a `PROCESS_END` message.
 
-> `MSGID` must be one of the values defined in this table.
+> `MSGID` must be one of the values defined in `SCOP.md` §7.
 
 ## Wire Format
 
-`SyslogMessage` events are serialised as **NDJSON** — one JSON object per line. The schema is RFC 5424; the serialisation format is NDJSON.
+Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** — one JSON object per line. The schema is RFC 5424; the serialisation format is NDJSON.
 
 ```json
-{"pri": 6, "msgid": "TASK_BEGIN", "id": "snap", "title": "Snapshotting", "msg": "Starting snapshot"}
-{"pri": 6, "msgid": "TASK_PROGRESS", "id": "snap", "percent": 50, "message": "hashing ./docs/intro.md", "msg": "hashing ./docs/intro.md"}
-{"pri": 6, "msgid": "TASK_END", "id": "snap", "ok": true, "msg": "Snapshot complete"}
+{"pri": 6, "msgid": "PROCESS_BEGIN", "room": "snapshot", "id": "snap", "label": "Snapshotting", "total": 142, "msg": "Snapshotting (142 files)"}
+{"pri": 6, "msgid": "PROCESS_UPDATE", "room": "snapshot", "id": "snap", "current": 71, "total": 142, "msg": "71 of 142: docs/intro.md"}
+{"pri": 6, "msgid": "PROCESS_END", "room": "snapshot", "id": "snap", "ok": true, "msg": "Snapshot complete"}
 ```
 
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
+> `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
-> A richer consumer parses `msgid` and `STRUCTURED-DATA` fields for TUI or GUI rendering.
 
 ## Utils
 
