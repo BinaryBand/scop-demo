@@ -1,0 +1,139 @@
+---
+# Rule 3: One class per role file
+id: one-class-per-role-file
+language: python
+severity: error
+message: >
+  Role files must define exactly one class; '$NAME' is a second class definition
+rule:
+  all:
+    - pattern: |
+        class $NAME($$$):
+          $$$
+    - follows:
+        pattern: |
+          class $OTHER($$$):
+            $$$
+files:
+  - "scop/adapters/**/*_adapter.py"
+  - "scop/services/**/*_service.py"
+  - "scop/ports/**/*_port.py"
+  - "scop/app/**/*_app.py"
+---
+# Rule 5: Marker base per layer — adapter
+id: adapter-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in an adapter file must have the 'Adapter' suffix and extend Adapter
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*Adapter[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(Adapter):
+                    $$$
+              - pattern: |
+                  class $NAME(Adapter, $$$):
+                    $$$
+files:
+  - "scop/adapters/**/*_adapter.py"
+---
+# Rule 5: Marker base per layer — service
+id: service-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in a service file must have the 'Service' suffix and extend Service
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*Service[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(Service):
+                    $$$
+              - pattern: |
+                  class $NAME(Service, $$$):
+                    $$$
+files:
+  - "scop/services/**/*_service.py"
+---
+# Rule 5: Marker base per layer — port
+id: port-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in a port file must have the 'Port' suffix and extend Port
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*Port[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(Port):
+                    $$$
+              - pattern: |
+                  class $NAME(Port, $$$):
+                    $$$
+files:
+  - "scop/ports/**/*_port.py"
+---
+# Rule 5: Marker base per layer — app
+id: app-class-convention
+language: python
+severity: error
+message: >
+  '$NAME' in an app file must have the 'App' suffix and extend BaseApp
+rule:
+  all:
+    - pattern: "class $NAME($$$): $$$"
+    - any:
+        - not:
+            regex: "class [A-Z]\\w*App[^a-zA-Z_]"
+        - not:
+            any:
+              - pattern: |
+                  class $NAME(BaseApp):
+                    $$$
+              - pattern: |
+                  class $NAME(BaseApp, $$$):
+                    $$$
+files:
+  - "scop/app/**/*_app.py"
+---
+# Rule 9: MSGID from fixed table only
+id: msgid-must-use-enum
+language: python
+severity: error
+message: >
+  Use MSGID.<value> from the enum — raw strings bypass the fixed-table contract (Rule 9)
+rule:
+  pattern: "SyslogMessage($$$, msgid=$RAW, $$$)"
+constraints:
+  RAW:
+    kind: string
+---
+# Rule 10: utils/ subdirectory allowlist
+id: utils-allowlist
+language: python
+severity: error
+message: >
+  '$MOD' is not in the utils/ subdirectory allowlist — permitted: fs, proc, net, fmt, text, env, time, hash, crypto, archive, concurrent, collect (Rule 10)
+rule:
+  all:
+    - any:
+        - pattern: "from scop.utils.$MOD import $$$"
+        - pattern: "import scop.utils.$MOD"
+    - not:
+        regex: "scop\\.utils\\.(fs|proc|net|fmt|text|env|time|hash|crypto|archive|concurrent|collect)\\b"

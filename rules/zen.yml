@@ -1,0 +1,134 @@
+---
+# Zen: Special cases aren't special enough to break the rules.
+id: no-noqa-suppression
+language: python
+severity: error
+message: >-
+  Remove the noqa suppression and fix the underlying issue. If this rule is
+  wrong for the entire project or file, disable it explicitly in ruff config
+  under [tool.ruff.lint] or [tool.ruff.lint.per-file-ignores].
+rule:
+  all:
+    - kind: comment
+    - regex: "#\\s*noqa\\b"
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
+---
+# Zen: Errors should never pass silently.
+id: no-silent-exception
+language: python
+severity: error
+message: >-
+  Silent exception swallowing hides failures from callers and makes debugging
+  impossible. Log the error, re-raise, translate to a domain error, or return
+  an error value instead.
+rule:
+  any:
+    - pattern: |
+        try:
+          $$$
+        except:
+          pass
+    - pattern: |
+        try:
+          $$$
+        except $E:
+          pass
+    - pattern: |
+        try:
+          $$$
+        except $E as $V:
+          pass
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
+---
+id: no-extra-allow-in-pydantic
+language: python
+severity: warning
+message: >-
+  Pydantic models must use extra="forbid" to reject unexpected fields at the
+  boundary. extra="allow" silently widens the accepted input space, defeating
+  schema validation.
+rule:
+  all:
+    - pattern: |
+        ConfigDict($$$, extra="allow", $$$)
+    - not:
+        inside:
+          pattern: |
+            class SemgrepRule(BaseModel):
+              $$$
+files:
+  - "scop/**/*.py"
+---
+id: no-any-types-project-wide
+language: python
+severity: error
+message: >-
+  Avoid Any/object in type annotations and type aliases. Use explicit domain
+  types, Protocols, TypedDict, generics with concrete bounds, or unions.
+rule:
+  any:
+    - all:
+        - pattern: "from typing import $$$"
+        - regex: "\\bAny\\b"
+    - all:
+        - pattern: "from typing_extensions import $$$"
+        - regex: "\\bAny\\b"
+    - pattern: "$X: Any"
+    - pattern: "$X: object"
+    - pattern: |
+        def $F($$$, $X: Any, $$$):
+          $$$
+    - pattern: |
+        def $F($$$, $X: object, $$$):
+          $$$
+    - pattern: |
+        def $F($$$) -> Any:
+          $$$
+    - pattern: |
+        def $F($$$) -> object:
+          $$$
+    - pattern: "cast(Any, $$$)"
+    - pattern: "cast(object, $$$)"
+# scop/models/messages.py is excluded: SyslogMessage.data is an intentionally
+# open-ended envelope field (arbitrary structured data per MSGID). Introducing
+# a proper JSON recursive type alias is tracked in docs/TODO.md Rule 6.
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
+ignores:
+  - "scop/models/messages.py"
+---
+id: no-compatibility-aliases
+language: python
+severity: error
+message: >-
+  Compatibility aliases are forbidden. Use one-time migrations and update call
+  sites to the canonical name instead of keeping alias assignments.
+rule:
+  all:
+    - pattern: "$ALIAS = $TARGET"
+    - not:
+        pattern: "$X = $X"
+    - not:
+        pattern: "$ALIAS: TypeAlias = $TARGET"
+    - not:
+        inside:
+          any:
+            - pattern: |
+                def $F($$$):
+                  $$$
+            - pattern: |
+                class $C($$$):
+                  $$$
+constraints:
+  ALIAS:
+    regex: "^[A-Z][A-Za-z0-9_]*$"
+  TARGET:
+    regex: "^[A-Z][A-Za-z0-9_]*$"
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
