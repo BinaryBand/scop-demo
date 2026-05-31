@@ -20,6 +20,23 @@ files:
   - "scop/ports/**/*_port.py"
   - "scop/app/**/*_app.py"
 ---
+# Rule 4: Port↔adapter parity
+id: adapter-must-declare-port
+language: python
+severity: error
+message: >
+  Adapter subclass '$NAME' must declare `port: ClassVar[type[Port]]`
+  (ARCHITECTURE.md convention 4 — port↔adapter parity)
+rule:
+  all:
+    - pattern: |
+        class $NAME(Adapter):
+            $$$BODY
+    - not:
+        regex: "port: ClassVar"
+files:
+  - "scop/adapters/**/*.py"
+---
 # Rule 5: Marker base per layer — adapter
 id: adapter-class-convention
 language: python
@@ -111,6 +128,36 @@ rule:
                     $$$
 files:
   - "scop/app/**/*_app.py"
+---
+# Rule 8: argparse and sys.exit only in cli.py
+id: no-argparse-outside-cli
+language: python
+severity: error
+message: argparse may only be imported in cli.py (ARCHITECTURE.md convention 8)
+rule:
+  pattern: import argparse
+files:
+  - "scop/adapters/**/*.py"
+  - "scop/app/**/*.py"
+  - "scop/models/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/utils/**/*.py"
+---
+# Rule 8: argparse and sys.exit only in cli.py
+id: no-sys-exit-outside-cli
+language: python
+severity: error
+message: sys.exit() may only be called in cli.py (ARCHITECTURE.md convention 8)
+rule:
+  pattern: sys.exit($$$ARGS)
+files:
+  - "scop/adapters/**/*.py"
+  - "scop/app/**/*.py"
+  - "scop/models/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/utils/**/*.py"
 ---
 # Rule 9: MSGID from fixed table only
 id: msgid-must-use-enum
