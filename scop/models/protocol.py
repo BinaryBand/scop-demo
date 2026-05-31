@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TypeAlias, Union
+from typing import TypeAlias
 
-JsonValue: TypeAlias = Union[str, int, float, bool, dict[str, "JsonValue"], list["JsonValue"], None]
+JsonValue: TypeAlias = str | int | float | bool | dict[str, "JsonValue"] | list["JsonValue"] | None
 
 
 class MSGID(StrEnum):

@@ -6,6 +6,7 @@ import asyncio
 import sys
 
 from scop.app.dispatcher import AppDispatcher
+from scop.app.stream import StreamingResult
 
 # ── Argument parser ───────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ def _build_parser() -> argparse.ArgumentParser:
 # ── Stream renderer ───────────────────────────────────────────────────────────
 
 
-async def _render(stream, *, verbose: bool, quiet: bool) -> bool:
+async def _render(stream: StreamingResult, *, verbose: bool, quiet: bool) -> bool:
     """Consume a StreamingResult and print each event's msg field.
 
     Follows SCOP §4.2 severity rendering:
@@ -70,7 +71,10 @@ async def _render(stream, *, verbose: bool, quiet: bool) -> bool:
         else:
             print(msg)
 
-    return stream.resolved.ok
+    result = stream.result
+    if result is None:
+        raise RuntimeError("stream completed without resolve() being called")
+    return result.ok
 
 
 # ── Entry points ──────────────────────────────────────────────────────────────
@@ -86,13 +90,7 @@ async def _main(argv: list[str] | None = None) -> int:
     quiet: bool = args.pop("quiet", False)
 
     dispatcher = AppDispatcher.default()
-    stream = dispatcher.dispatch(command, args)
-
-    if command is None:
-        stream = dispatcher.dispatch("", args)
-        ok = await _render(stream, verbose=verbose, quiet=quiet)
-        return 0 if ok else 1
-
+    stream = dispatcher.dispatch("" if command is None else command, args)
     ok = await _render(stream, verbose=verbose, quiet=quiet)
     return 0 if ok else 1
 

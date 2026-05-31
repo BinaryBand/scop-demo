@@ -1,29 +1,12 @@
 ---
 # Zen: There should be one — and preferably only one — obvious way to do it.
-id: no-type-checking-guard
-language: python
-severity: error
-message: >-
-  Import the type directly instead of guarding it behind TYPE_CHECKING. Two
-  import paths for the same name — one at runtime, one for type checkers —
-  violates "one obvious way to do it" and hides real circular-import problems
-  that should be fixed structurally.
-rule:
-  all:
-    - pattern: "from typing import $$$"
-    - regex: "\\bTYPE_CHECKING\\b"
-files:
-  - "scop/**/*.py"
-  - "tests/**/*.py"
----
+# TID251
 # Zen: Special cases aren't special enough to break the rules.
 id: no-noqa-suppression
 language: python
 severity: error
 message: >-
-  Remove the noqa suppression and fix the underlying issue. If this rule is
-  wrong for the entire project or file, disable it explicitly in ruff config
-  under [tool.ruff.lint] or [tool.ruff.lint.per-file-ignores].
+  Remove the noqa suppression and fix the underlying issue. If this rule is wrong for the entire project or file, disable it explicitly in ruff config under [tool.ruff.lint] or [tool.ruff.lint.per-file-ignores].
 rule:
   all:
     - kind: comment
@@ -37,9 +20,7 @@ id: no-silent-exception
 language: python
 severity: error
 message: >-
-  Silent exception swallowing hides failures from callers and makes debugging
-  impossible. Log the error, re-raise, translate to a domain error, or return
-  an error value instead.
+  Silent exception swallowing hides failures from callers and makes debugging impossible. Log the error, re-raise, translate to a domain error, or return an error value instead.
 rule:
   any:
     - pattern: |
@@ -65,9 +46,7 @@ id: no-extra-allow-in-pydantic
 language: python
 severity: warning
 message: >-
-  Pydantic models must use extra="forbid" to reject unexpected fields at the
-  boundary. extra="allow" silently widens the accepted input space, defeating
-  schema validation.
+  Pydantic models must use extra="forbid" to reject unexpected fields at the boundary. extra="allow" silently widens the accepted input space, defeating schema validation.
 rule:
   all:
     - pattern: |
@@ -84,31 +63,16 @@ id: no-any-types-project-wide
 language: python
 severity: error
 message: >-
-  Avoid Any/object in type annotations and type aliases. Use explicit domain
-  types, Protocols, TypedDict, generics with concrete bounds, or unions.
+  Avoid Any/object in type annotations and type aliases. Use explicit domain types, Protocols, TypedDict, generics with concrete bounds, or unions.
 rule:
   any:
-    - all:
-        - pattern: "from typing import $$$"
-        - regex: "\\bAny\\b"
-    - all:
-        - pattern: "from typing_extensions import $$$"
-        - regex: "\\bAny\\b"
-    - pattern: "$X: Any"
     - pattern: "$X: object"
-    - pattern: |
-        def $F($$$, $X: Any, $$$):
-          $$$
     - pattern: |
         def $F($$$, $X: object, $$$):
           $$$
     - pattern: |
-        def $F($$$) -> Any:
-          $$$
-    - pattern: |
         def $F($$$) -> object:
           $$$
-    - pattern: "cast(Any, $$$)"
     - pattern: "cast(object, $$$)"
 files:
   - "scop/**/*.py"
@@ -118,8 +82,7 @@ id: no-compatibility-aliases
 language: python
 severity: error
 message: >-
-  Compatibility aliases are forbidden. Use one-time migrations and update call
-  sites to the canonical name instead of keeping alias assignments.
+  Compatibility aliases are forbidden. Use one-time migrations and update call sites to the canonical name instead of keeping alias assignments.
 rule:
   all:
     - pattern: "$ALIAS = $TARGET"

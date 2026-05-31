@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from scop.app.bases import BaseApp
-from scop.app.stream import StreamingResult
 from scop.models.protocol import MSGID, SyslogMessage
+from scop.ports.stream import IStream
 
 
 class StatusApp(BaseApp):
-    async def run(self, args: dict, stream: StreamingResult) -> None:
+    async def run(self, args: dict, stream: IStream) -> None:
         stream.emit(
             SyslogMessage(
                 pri=6,

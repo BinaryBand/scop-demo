@@ -29,16 +29,67 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint]
-select = ["RUF", "E", "F", "W", "I", "N", "A", "B", "S"] # "D"]
+select = [
+    "ANN",  # type annotations
+    "RUF",  # ruff-specific
+    "T",    # ban print
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "N",    # pep8-naming
+    "A",    # shadowed builtins
+    "B",    # bugbear
+    "S",    # security
+    "UP",   # modern Python syntax
+    "FURB", # idiomatic Python patterns
+    "SIM",  # simplify conditions and code
+    "RET",  # consistent returns
+    "PTH",  # pathlib over os.path
+    "ERA",  # no commented-out code
+    "PGH",  # no bare type: ignore
+    "C4",   # comprehension style
+    "PIE",  # unnecessary patterns
+    "TID",  # banned-api + import rules
+    "PERF", # performance anti-patterns
+    "ISC",  # implicit string concatenation
+    "ARG",  # unused arguments
+    "FA",   # require from __future__ import annotations
+    # TCH deliberately omitted — TYPE_CHECKING is banned
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TYPE_CHECKING".msg = "All imports must work at runtime — use 'from __future__ import annotations' for forward references instead"
+
+# select = ["ANN", "RUF", "T", "E", "F", "W", "I", "N", "A", "B", "S"] # "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]              # Tests use `assert` idiomatically
-"tests/conftest.py" = ["S101"]          # conftest _fix() runs trusted dev tools
-"scop/models/bases.py" = ["B024"]       # Port is an intentional marker base
+"tests/**/*.py" = ["S101"] # Tests use `assert` idiomatically
+"tests/conftest.py" = ["S101"] # conftest _fix() runs trusted dev tools
+"scop/cli.py" = ["T201"] # CLI uses print() for user output, not logging
+"scop/models/bases.py" = [
+    "B024",
+    "ANN001",
+] # Marker bases — pending move out of models/ (see docs/TODO)
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
+"scop/adapters/snapshot_adapter.py" = [
+    "ARG002",
+] # Stub — kwargs are part of SnapshotPort interface
+"scop/app/registry/diff_app.py" = [
+    "ARG002",
+] # Shell — args contract from BaseApp, not yet used
+"scop/app/registry/log_app.py" = [
+    "ARG002",
+] # Shell — args contract from BaseApp, not yet used
+"scop/app/registry/restore_app.py" = [
+    "ARG002",
+] # Shell — args contract from BaseApp, not yet used
+"scop/app/registry/status_app.py" = [
+    "ARG002",
+] # Shell — args contract from BaseApp, not yet used
 
 [tool.ty.environment]
 python-version = "3.11"

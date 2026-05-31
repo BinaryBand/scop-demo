@@ -17,7 +17,7 @@ class TestRuff:
 
     PATHS = ("scop/", "tests/")
 
-    def test_ruff_check(self):
+    def test_ruff_check(self) -> None:
         """Fail if ruff reports any lint violations."""
         result = run_resolved(
             ["poetry", "run", "ruff", "check", *self.PATHS],
@@ -28,7 +28,7 @@ class TestRuff:
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
-    def test_ruff_format(self):
+    def test_ruff_format(self) -> None:
         """Fail if ruff reports any formatting violations."""
         result = run_resolved(
             ["poetry", "run", "ruff", "format", "--check", *self.PATHS],
@@ -43,7 +43,7 @@ class TestRuff:
 class TestImportLinter:
     """Ensure the codebase obeys the import layer contract."""
 
-    def test_lint_imports(self):
+    def test_lint_imports(self) -> None:
         """Fail if import-linter reports any contract violations."""
         result = run_resolved(
             ["poetry", "run", "lint-imports"],
@@ -58,7 +58,7 @@ class TestImportLinter:
 class TestAstGrep:
     """Ensure the codebase passes all ast-grep structural rules."""
 
-    def test_ast_grep_scan(self):
+    def test_ast_grep_scan(self) -> None:
         """Fail if ast-grep reports any rule violations."""
         result = run_resolved(
             ["poetry", "run", "ast-grep", "scan"],
@@ -74,7 +74,7 @@ class TestAstGrep:
 class TestTy:
     """Ensure the codebase passes the current ty gate."""
 
-    def test_ty(self):
+    def test_ty(self) -> None:
         """Fail if ty reports any type-checking violations."""
         result = run_resolved(
             ["poetry", "run", "ty", "check"],
