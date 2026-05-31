@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scop.models.bases import Service
+from scop.bases import Service
 from scop.models.protocol import MSGID, SyslogMessage
 from scop.ports.snapshot_port import SnapshotPort
 from scop.ports.stream import IStream

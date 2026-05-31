@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 
-from scop.models.bases import Port
+from scop.bases import Port
 from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 
 

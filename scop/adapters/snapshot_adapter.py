@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from scop.models.bases import Adapter
+from scop.bases import Adapter
 from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 from scop.ports.snapshot_port import SnapshotPort
 

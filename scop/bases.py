@@ -15,7 +15,7 @@ class Adapter(ABC):
 
 
 class Service(ABC):
-    """Marker base — must implement run(stream: IStream); output flows through IStream events."""
+    """Marker base — must implement run(stream); output flows through stream events."""
 
     @abstractmethod
     async def run(self, stream) -> None: ...

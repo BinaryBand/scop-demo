@@ -73,10 +73,7 @@ convention = "google"
 "tests/**/*.py" = ["S101"] # Tests use `assert` idiomatically
 "tests/conftest.py" = ["S101"] # conftest _fix() runs trusted dev tools
 "scop/cli.py" = ["T201"] # CLI uses print() for user output, not logging
-"scop/models/bases.py" = [
-    "B024",
-    "ANN001",
-] # Marker bases — pending move out of models/ (see docs/TODO)
+"scop/bases.py" = ["B024", "ANN001"] # Marker bases — stream annotation pending (see docs/TODO Rule 6)
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
 "scop/adapters/snapshot_adapter.py" = [
     "ARG002",

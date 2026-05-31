@@ -10,6 +10,22 @@ root_packages =
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# bases.py — stdlib-only leaf; all layers may import from it.
+[importlinter:contract:bases]
+name = Bases depend on nothing internal
+type = forbidden
+source_modules =
+    scop.bases
+forbidden_modules =
+    scop.models
+    scop.ports
+    scop.services
+    scop.adapters
+    scop.app
+    scop.cli
+    scop.utils
+
+
 # app/ — edge verbs: wires, types
 # app/ is the composition root — it may import services, adapters, and ports.
 # The only forbidden direction is upward into cli.

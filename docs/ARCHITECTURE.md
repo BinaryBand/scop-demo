@@ -12,7 +12,7 @@ Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-dra
 | --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP.md` §7) | SCOP §7 |
-| CLI Contract (`CLI_Contract.md`) | SCOP §§6, 8, 9 |
+| CLI Contract (`CLI_CONTRACT.md`) | SCOP §§6, 8, 9 |
 
 ## Dependency Diagram
 
@@ -49,7 +49,7 @@ graph TD
 | `implements` | subclass / realize a port | constructing or calling another adapter | ast-grep |
 | `calls` | invoke port methods | constructing the implementation | import-linter |
 | `reads` | import and read data types | mutating or adding behaviour | ruff + ty (frozen models) |
-| `types` | reference for annotations only | runtime use | ruff TCH |
+| `types` | reference for annotations only | runtime use | ruff `FA` + `TID251` |
 | `uses` | call pure functions | anything stateful | *(deferred)* |
 
 Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concrete one.
@@ -76,6 +76,51 @@ Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concr
 
 All four compose under a single `pre-commit` hook.
 
+**Ruff rule selection:**
+
+```toml
+[tool.ruff.lint]
+select = [
+    "ANN",  # type annotations
+    "RUF",  # ruff-specific
+    "T",    # ban print
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "N",    # pep8-naming
+    "A",    # shadowed builtins
+    "B",    # bugbear
+    "S",    # security
+    "UP",   # modern Python syntax
+    "FURB", # idiomatic Python patterns
+    "SIM",  # simplify conditions and code
+    "RET",  # consistent returns
+    "PTH",  # pathlib over os.path
+    "ERA",  # no commented-out code
+    "PGH",  # no bare type: ignore
+    "C4",   # comprehension style
+    "PIE",  # unnecessary patterns
+    "TID",  # banned-api + import rules
+    "PERF", # performance anti-patterns
+    "ISC",  # implicit string concatenation
+    "ARG",  # unused arguments
+    "FA",   # require from __future__ import annotations
+    "DTZ",  # datetime timezone awareness
+    # D (docstrings)
+    # FBT (boolean trap)
+    # EM (exception messages)
+    # PL (pylint full set)
+    # TCH (TYPE_CHECKING) deliberately omitted
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ARG"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TYPE_CHECKING".msg  = "Import directly — use 'from __future__ import annotations' for forward references (Rule 12)"
+```
+
 > **Consider also:** [Vulture](https://github.com/jendrikseipp/vulture) for dead code detection, [Lizard](https://github.com/terryyin/lizard) for cyclomatic complexity, and [jscpd](https://github.com/kucherenko/jscpd) for copy-paste detection — none are required but all complement the above toolchain on long-lived projects.
 
 ## Conventions
@@ -91,8 +136,9 @@ All four compose under a single `pre-commit` hook.
 | 7 | **`cli.py` may only import `AppDispatcher`** — `cli.py` is excluded from the import-linter pipeline as an outside consumer; boundary enforced at symbol level only | ast-grep |
 | 8 | **`argparse` and `sys.exit` only in `cli.py`** | ast-grep |
 | 9 | **MSGID from fixed table only** | ast-grep |
-| 10 | **`utils/` subdirectory allowlist** | ast-grep |
+| 10 | **`utils/` module allowlist** — each permitted name MAY exist as either `name.py` or `name/`; no other modules or packages at the `utils/` root are permitted | ast-grep |
 | 11 | **Depth import rule** — a file may only import from deeper modules; never from a neighbour or anything closer to root. `app/dispatcher.py` resolves this by placing concrete apps one level deeper under `app/registry/` | ast-grep |
+| 12 | **`TYPE_CHECKING` banned** — all imports must work at runtime; use `from __future__ import annotations` for forward references. Guards hide circular-import violations that should be fixed structurally. | ruff `TID251` banned-api + `FA` |
 
 ## AppDispatcher
 
@@ -202,7 +248,7 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
-> Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_Contract.md`.
+> Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_CONTRACT.md`.
 
 ## Utils
 
