@@ -1,4 +1,4 @@
-# Sempy Architecture
+# Source Architecture
 
 The goal is to focus on best-practice recommendations that genuinely reduce decision-making. The strongest moves are those that remove the most entropy per unit of added complexity.
 
@@ -6,10 +6,10 @@ The goal is to focus on best-practice recommendations that genuinely reduce deci
 
 ## Standards
 
-Sempy's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP_Spec.md`.
+Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP_Spec.md`.
 
-| Sempy document | Implements |
-|---|---|
+| Source document | Implements |
+| --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP_Spec.md` §7) | SCOP §7 |
 | CLI Contract (`CLI_Contract.md`) | SCOP §§6, 8, 9 |
