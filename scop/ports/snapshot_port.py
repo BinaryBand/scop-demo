@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING
 
 from scop.models.bases import Port
-
-if TYPE_CHECKING:
-    from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
+from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 
 
 class SnapshotPort(Port):

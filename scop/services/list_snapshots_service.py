@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from scop.models.bases import Service
 from scop.models.messages import MSGID, SyslogMessage
-
-if TYPE_CHECKING:
-    from scop.models.results import StreamingResult
-    from scop.ports.snapshot_port import SnapshotPort
+from scop.models.results import StreamingResult
+from scop.ports.snapshot_port import SnapshotPort
 
 
 class ListSnapshotsService(Service):

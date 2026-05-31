@@ -1,4 +1,21 @@
 ---
+# Zen: There should be one — and preferably only one — obvious way to do it.
+id: no-type-checking-guard
+language: python
+severity: error
+message: >-
+  Import the type directly instead of guarding it behind TYPE_CHECKING. Two
+  import paths for the same name — one at runtime, one for type checkers —
+  violates "one obvious way to do it" and hides real circular-import problems
+  that should be fixed structurally.
+rule:
+  all:
+    - pattern: "from typing import $$$"
+    - regex: "\\bTYPE_CHECKING\\b"
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
+---
 # Zen: Special cases aren't special enough to break the rules.
 id: no-noqa-suppression
 language: python
