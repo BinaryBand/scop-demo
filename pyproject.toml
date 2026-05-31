@@ -55,13 +55,16 @@ select = [
     "ISC",  # implicit string concatenation
     "ARG",  # unused arguments
     "FA",   # require from __future__ import annotations
+    "DTZ",  # datetime timezone awareness
+    # D (docstrings) High noise on a new project; add later
+    # FBT (boolean trap) Very noisy, lots of legitimate bools
+    # EM (exception messages) Prescriptive about string formatting in raises
+    # PL (pylint full set) Too broad, many conflicts with existing rules
     # TCH deliberately omitted — TYPE_CHECKING is banned
 ]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.TYPE_CHECKING".msg = "All imports must work at runtime — use 'from __future__ import annotations' for forward references instead"
-
-# select = ["ANN", "RUF", "T", "E", "F", "W", "I", "N", "A", "B", "S"] # "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
