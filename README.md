@@ -50,6 +50,41 @@ scop snapshot diff --to   snap-003   # diff to a named snapshot
 
 ---
 
+## TUI how-to
+
+`scop-tui` renders SCOP NDJSON streams using a Textual interface.
+
+### Interactive mode (recommended)
+
+Use `--cmd` so the TUI keeps keyboard input available:
+
+```sh
+scop-tui --cmd "scop snapshot --list"
+```
+
+### File-backed interactive mode
+
+```sh
+scop snapshot --list > events.ndjson
+scop-tui --from events.ndjson
+```
+
+### Pipe mode (render-and-exit)
+
+```sh
+scop snapshot --list | scop-tui
+```
+
+In pipe mode, stdin carries the finite event stream, so the UI exits when EOF is reached.
+
+### Key controls
+
+- `q`: quit
+- `Tab` / `Shift+Tab`: move focus between panes
+- `Up` / `Down` or `j` / `k`: move table cursor
+
+---
+
 ## Output format
 
 Every invocation emits NDJSON — one JSON object per line — wrapped in a `PAGE_BEGIN` / `PAGE_END` pair:

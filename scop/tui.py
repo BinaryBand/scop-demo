@@ -10,7 +10,9 @@ No knowledge of the producing application is required.
 
 from __future__ import annotations
 
+import io
 import json
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, TextIO
@@ -60,11 +62,18 @@ class ScopTuiApp(App[None]):
     DataTable { height: auto; }
     """
 
-    BINDINGS: ClassVar[list[Binding]] = [Binding("q", "quit", "Quit")]
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("q", "quit", "Quit"),
+        Binding("tab", "focus_next", "Next Pane"),
+        Binding("shift+tab", "focus_previous", "Prev Pane"),
+        Binding("j,down", "cursor_down", "Down"),
+        Binding("k,up", "cursor_up", "Up"),
+    ]
 
-    def __init__(self, src: TextIO) -> None:
+    def __init__(self, src: TextIO, *, exit_on_eof: bool = False) -> None:
         super().__init__()
         self._src = src
+        self._exit_on_eof = exit_on_eof
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
@@ -94,6 +103,8 @@ class ScopTuiApp(App[None]):
                 self.call_from_thread(self._log, f"[red]bad json:[/red] {raw!r}")
                 continue
             self.call_from_thread(self._route, event)
+        if self._exit_on_eof:
+            self.call_from_thread(self.exit)
 
     def _route(self, event: dict[str, Any]) -> None:
         pri: int = event.get("pri", 6)
@@ -114,6 +125,22 @@ class ScopTuiApp(App[None]):
 
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)
+
+    def _active_table(self) -> DataTable | None:
+        focused = self.focused
+        if isinstance(focused, DataTable):
+            return focused
+        return next(self.query("DataTable").results(DataTable), None)
+
+    def action_cursor_down(self) -> None:
+        table = self._active_table()
+        if table is not None:
+            table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        table = self._active_table()
+        if table is not None:
+            table.action_cursor_up()
 
     # PAGE ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +181,8 @@ class ScopTuiApp(App[None]):
             table.add_column(col, key=col)
         content = self.query_one("#content", ScrollableContainer)
         content.mount(Static(f"[bold]{state.label}[/bold]"), table)
+        if not isinstance(self.focused, DataTable):
+            table.focus()
 
     def table_row(self, e: dict[str, Any]) -> None:
         state = self._tables.get(e["id"])
@@ -295,22 +324,42 @@ _DISPATCH: dict[str, str] = {
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
-def _consume(src: TextIO) -> None:
-    ScopTuiApp(src).run()
+def _consume(src: TextIO, *, exit_on_eof: bool = False) -> None:
+    ScopTuiApp(src, exit_on_eof=exit_on_eof).run()
 
 
 def main() -> None:
     """Installed entry point: scop-tui = 'scop.tui:main'"""
+    args = sys.argv[1:]
     if "--help" in sys.argv or "-h" in sys.argv:
         sys.stdout.write(
             "scop-tui — SCOP §10 event stream renderer\n\n"
             "Usage:\n"
             "  scop [command] | scop-tui\n"
             "  scop-tui < events.ndjson\n\n"
-            "Keys: q quit\n"
+            "  scop-tui --from events.ndjson\n"
+            "  scop-tui --cmd \"scop snapshot --list\"\n\n"
+            "Keys: q quit, tab/shift+tab change pane, up/down or j/k move rows\n"
         )
         sys.exit(0)
+
+    if len(args) >= 2 and args[0] == "--from":
+        with open(args[1], encoding="utf-8") as f:
+            _consume(f)
+        return
+
+    if len(args) >= 2 and args[0] == "--cmd":
+        result = subprocess.run(args[1], shell=True, capture_output=True, text=True)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        _consume(io.StringIO(result.stdout))
+        if result.returncode != 0:
+            sys.exit(result.returncode)
+        return
+
     if sys.stdin.isatty():
         sys.stdout.write("Usage: scop [command] | scop-tui\n")
         sys.exit(0)
-    _consume(sys.stdin)
+
+    # In piped mode stdin carries events, so keyboard control is unavailable.
+    _consume(sys.stdin, exit_on_eof=True)
