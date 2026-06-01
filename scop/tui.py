@@ -77,10 +77,17 @@ class ScopTuiApp(App[None]):
     _PAGES: ClassVar[list[tuple[str, str, list[str], str | None]]] = [
         ("home", "🏠 Home", [], None),
         ("snapshot", "📸 Snapshots", ["snapshot"], None),
-        ("list", "  📋 List", ["snapshot", "--list"], "snapshot"),
-        ("list-all", "  📋 All", ["snapshot", "--list", "--all"], "snapshot"),
         ("diff", "  🔍 Diff", ["snapshot", "diff"], "snapshot"),
     ]
+
+    _PAGE_PIPELINES: ClassVar[dict[str, list[list[str]]]] = {
+        # Build one "Snapshots" view from SCOP query flags as a page amalgamation.
+        "snapshot": [
+            ["snapshot", "--status"],
+            ["snapshot", "--list", "--all"],
+            ["snapshot", "--help"],
+        ],
+    }
 
     CSS = """
     Horizontal { height: 1fr; }
@@ -116,6 +123,9 @@ class ScopTuiApp(App[None]):
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
+        self._composite_active = False
+        self._composite_page_started = False
+        self._composite_page_end_remaining = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -164,6 +174,10 @@ class ScopTuiApp(App[None]):
         for raw in io.StringIO(result.stdout):
             self._process_line(raw)
 
+    def _run_scop_pipeline(self, commands: list[list[str]]) -> None:
+        for args in commands:
+            self._run_scop(args)
+
     def _process_line(self, raw: str) -> None:
         raw = raw.strip()
         if not raw:
@@ -184,6 +198,19 @@ class ScopTuiApp(App[None]):
         _, _, args, parent_key = page
         self._current_key = key
         self.query_one("#back-btn", Button).display = parent_key is not None
+
+        pipeline = self._PAGE_PIPELINES.get(key)
+        if pipeline is not None:
+            self._composite_active = True
+            self._composite_page_started = False
+            self._composite_page_end_remaining = len(pipeline)
+            captured_pipeline = [list(cmd) for cmd in pipeline]
+            self.run_worker(lambda: self._run_scop_pipeline(captured_pipeline), thread=True)
+            return
+
+        self._composite_active = False
+        self._composite_page_started = False
+        self._composite_page_end_remaining = 0
         captured = list(args)
         self.run_worker(lambda: self._run_scop(captured), thread=True)
 
@@ -240,6 +267,12 @@ class ScopTuiApp(App[None]):
     # PAGE ────────────────────────────────────────────────────────────────────
 
     def page_begin(self, e: dict[str, Any]) -> None:
+        if self._composite_active and self._composite_page_started:
+            # In composite mode we keep one page shell while appending data from
+            # subsequent SCOP query runs.
+            return
+
+        self._composite_page_started = self._composite_active
         title = e.get("title") or e.get("room") or "scop"
         icon = e.get("icon", "")
         self.title = f"{icon} {title}".strip()
@@ -260,6 +293,13 @@ class ScopTuiApp(App[None]):
         self._procs.clear()
 
     def page_end(self, _e: dict[str, Any]) -> None:
+        if self._composite_active:
+            self._composite_page_end_remaining -= 1
+            if self._composite_page_end_remaining > 0:
+                return
+            self._composite_active = False
+            self._composite_page_started = False
+            self._composite_page_end_remaining = 0
         self._log("[dim]── end ──[/dim]")
 
     # SCALAR ──────────────────────────────────────────────────────────────────
