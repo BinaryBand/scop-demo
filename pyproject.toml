@@ -6,10 +6,11 @@ authors = [
     { name = "BinaryBand", email = "BinaryBand@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["rich (>=15.0.0,<16.0.0)"]
 
 [project.scripts]
 scop = "scop.cli:main"
+scop-tui = "scop.tui:main"
 
 
 [build-system]
@@ -70,6 +71,7 @@ select = [
 "tomli".msg = "TOML parsing belongs in utils/fmt only"
 "cryptography".msg = "Encryption belongs in utils/crypto only"
 "pydantic".msg = "Pydantic models belong in models/ only"
+"rich".msg = "TUI rendering belongs in tui.py only"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -85,6 +87,7 @@ convention = "google"
 "scop/utils/crypto.py" = ["TID251"]
 "scop/utils/crypto/**/*.py" = ["TID251"]
 "scop/models/**/*.py" = ["TID251"]
+"scop/tui.py" = ["TID251"]
 "scop/bases.py" = [
     "B024",
     "ANN001",

@@ -24,6 +24,7 @@ files:
   - "tests/**/*.py"
 ignores:
   - "scop/cli.py"
+  - "scop/tui.py"
   - "scop/adapters/**/*.py"
   - "scop/models/**/*.py"
   - "scop/utils/concurrent.py"
