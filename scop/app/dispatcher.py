@@ -23,7 +23,7 @@ class AppDispatcher:
         app = self._resolve(command)
         room = None if command == "" else command
         args["_room"] = room
-        stream = StreamingResult()
+        stream = StreamingResult(self._runtime)
         self._runtime.spawn(app.run(args, stream))
         return stream
 

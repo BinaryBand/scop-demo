@@ -46,14 +46,15 @@ ignore_imports =
 
 # app/ — edge verbs: wires, types
 # app/ is the composition root — it may import services, adapters, and ports.
-# The only forbidden direction is upward into cli.
+# It may not import cli or utils.
 [importlinter:contract:app]
-name = App may not import CLI
+name = App may not import CLI or utils
 type = forbidden
 source_modules =
     scop.app
 forbidden_modules =
     scop.cli
+    scop.utils
 
 
 # services/ — edge verbs: calls (ports), reads (models)

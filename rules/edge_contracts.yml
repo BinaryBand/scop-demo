@@ -12,3 +12,18 @@ rule:
     - pattern: "import scop.adapters.$MOD"
 files:
   - "scop/adapters/**/*.py"
+
+---
+# app layer must not depend on utils directly
+id: no-app-utils-import
+language: python
+severity: error
+message: >
+  app/ must not import scop.utils directly; route runtime/infrastructure through
+  ports and adapters.
+rule:
+  any:
+    - pattern: "from scop.utils.$MOD import $$$"
+    - pattern: "import scop.utils.$MOD"
+files:
+  - "scop/app/**/*.py"

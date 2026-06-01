@@ -12,7 +12,7 @@ Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-dra
 | --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP.md` §7) | SCOP §7 |
-| CLI Contract (`CLI_CONTRACT.md`) | SCOP §§6, 8, 9 |
+| CLI Contract (this doc + `SCOP.md`) | SCOP §§6, 8, 9 |
 
 ## Dependency Diagram
 
@@ -59,8 +59,8 @@ Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concr
 3. **services/** run domain logic, calling out through **ports/** interfaces
 4. **adapters/** answer those port calls, using **models/** and **utils/** to do so
 5. **adapters/** return a port interface back to the service
-6. **services/** emit events and resolve the `StreamingResult`
-7. **app/** returns the resolved `StreamingResult` to **cli.py** to render
+6. **services/** emit events and resolve the `StreamPort`
+7. **app/** returns the resolved `StreamPort` to **cli.py** to render
 
 > `cli.py` may only import `AppDispatcher`.
 > `argparse` may only appear in `cli.py`.
@@ -107,10 +107,10 @@ select = [
     "ARG",  # unused arguments
     "FA",   # require from __future__ import annotations
     "DTZ",  # datetime timezone awareness
-    # D     (docstrings)     — high noise on new projects; add when stable
-    # FBT   (boolean trap)   — add without FBT003 when API surface is settled
-    # EM    (exception messages) — prescriptive; low entropy gain
-    # PL    (pylint full set) — too broad; conflicts with existing rules
+    # D     (docstrings)
+    # FBT   (boolean trap)
+    # EM    (exception messages)
+    # PL    (pylint full set)
     # TCH   (TYPE_CHECKING)  — deliberately omitted; TYPE_CHECKING is banned (Rule 12)
 ]
 
@@ -184,23 +184,49 @@ Each submodule is restricted to the third-party packages listed. Importing a lis
 ```text
 app/
 ├── dispatcher.py
+├── stream.py
 └── registry/
-    ├── snap_app.py
-    └── diff_app.py
+    ├── builder.py
+    ├── root_app.py
+    └── snap_app.py
 ```
 
 ```mermaid
 classDiagram
     class AppDispatcher {
         -registry: dict[str, BaseApp]
-        +dispatch(command: str, args: dict) StreamingResult
+        -runtime: RuntimePort
+        +dispatch(command: str, args: dict) StreamPort
         -_resolve(command: str) BaseApp
+    }
+
+    class StreamPort {
+        <<abstract>>
+        +emit(event: SyslogMessage) void
+        +resolve(ok: bool, data: SyslogMessage) void
+        +result: ResolvedResult | None
+        +__aiter__() AsyncIterator~SyslogMessage~
     }
 
     class StreamingResult {
         +emit(event: SyslogMessage) void
         +resolve(ok: bool, data: SyslogMessage) void
+        +result: ResolvedResult | None
         +__aiter__() AsyncIterator~SyslogMessage~
+    }
+
+    class RuntimePort {
+        <<abstract>>
+        +new_stream() int
+        +emit(stream_id: int, event: SyslogMessage) void
+        +resolve(stream_id: int, ok: bool, data: SyslogMessage) void
+        +result(stream_id: int) ResolvedResult | None
+        +iter_events(stream_id: int) AsyncIterator~SyslogMessage~
+        +spawn(job) void
+    }
+
+    class RuntimeAdapter {
+        +spawn(job) void
     }
 
     class SyslogMessage {
@@ -214,11 +240,15 @@ classDiagram
 
     class BaseApp {
         <<abstract>>
-        +run(args: dict, stream: StreamingResult) void
+        +run(args: dict, stream: StreamPort) void
     }
 
     AppDispatcher --> BaseApp : resolves & calls run()
+    AppDispatcher --> RuntimePort : delegates async runtime ops
     AppDispatcher --> StreamingResult : creates & passes down
+    RuntimeAdapter ..|> RuntimePort
+    StreamingResult ..|> StreamPort
+    StreamingResult --> RuntimePort : delegates queue/result ops
     StreamingResult --> SyslogMessage : emits
     StreamingResult --> ResolvedResult : terminates with
     BaseApp <|-- ConcreteAppA
@@ -285,7 +315,7 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
-> Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_CONTRACT.md`.
+> Full vocabulary and flag contracts: `SCOP.md` §§7-9.
 
 ## Utils
 
