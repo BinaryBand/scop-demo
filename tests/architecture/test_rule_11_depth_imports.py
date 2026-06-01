@@ -14,6 +14,7 @@ from scop.utils.code import imported_modules
 
 ROOT = Path(__file__).resolve().parents[2]
 DISPATCHER_PATH = ROOT / "scop" / "app" / "dispatcher.py"
+REGISTRY_DIR = ROOT / "scop" / "app" / "registry"
 
 
 def test_app_dispatcher_only_imports_deeper_app_modules() -> None:
@@ -22,3 +23,25 @@ def test_app_dispatcher_only_imports_deeper_app_modules() -> None:
     app_imports = {module for module in modules if module.startswith("scop.app.")}
 
     assert app_imports == {"scop.app.registry.builder"}, app_imports
+
+
+def test_registry_apps_do_not_import_parent_app_modules() -> None:
+    """app/registry/* files must not import from scop.app (parent level).
+
+    Permitted: scop.app.registry.* (same depth or deeper).
+    Forbidden: scop.app.bases, scop.app.dispatcher, scop.app.stream, etc.
+    """
+    violations: dict[str, set[str]] = {}
+    for path in sorted(REGISTRY_DIR.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        modules = imported_modules(path)
+        bad = {
+            m
+            for m in modules
+            if m.startswith("scop.app.") and not m.startswith("scop.app.registry.")
+        }
+        if bad:
+            violations[path.name] = bad
+
+    assert not violations, violations

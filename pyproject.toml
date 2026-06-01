@@ -65,13 +65,26 @@ select = [
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.TYPE_CHECKING".msg = "All imports must work at runtime — use 'from __future__ import annotations' for forward references instead"
+"httpx".msg = "HTTP belongs in utils/net only"
+"yaml".msg = "YAML serialisation belongs in utils/fmt only"
+"tomli".msg = "TOML parsing belongs in utils/fmt only"
+"cryptography".msg = "Encryption belongs in utils/crypto only"
+"pydantic".msg = "Pydantic models belong in models/ only"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"] # Tests use `assert` idiomatically
+"tests/**/*.py" = ["S101", "ARG"] # Tests use `assert` idiomatically; unused-arg false-positives on fixtures
 "tests/conftest.py" = ["S101"] # conftest _fix() runs trusted dev tools
+# TID251 carve-outs — third-party allowed only in the one declared submodule
+"scop/utils/net.py" = ["TID251"]
+"scop/utils/net/**/*.py" = ["TID251"]
+"scop/utils/fmt.py" = ["TID251"]
+"scop/utils/fmt/**/*.py" = ["TID251"]
+"scop/utils/crypto.py" = ["TID251"]
+"scop/utils/crypto/**/*.py" = ["TID251"]
+"scop/models/**/*.py" = ["TID251"]
 "scop/bases.py" = [
     "B024",
     "ANN001",

@@ -80,6 +80,21 @@ files:
   - "scop/ports/**/*.py"
   - "scop/models/**/*.py"
 ---
+# Rule 1: asyncio may only appear in cli.py and adapters/runtime_adapter.py.
+id: no-asyncio-outside-runtime-adapter
+language: python
+severity: error
+message: >
+  Rule 1: asyncio is confined to cli.py and adapters/runtime_adapter.py — the event loop and task scheduling are owned at the entry point and the runtime adapter respectively.
+rule:
+  any:
+    - pattern: "import asyncio"
+    - pattern: "from asyncio import $$$"
+files:
+  - "scop/adapters/**/*.py"
+ignores:
+  - "scop/adapters/runtime_adapter.py"
+---
 # Rule 3: One class per role file
 id: one-class-per-role-file
 language: python
