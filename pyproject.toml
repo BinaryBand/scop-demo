@@ -6,7 +6,11 @@ authors = [
     { name = "BinaryBand", email = "BinaryBand@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = ["rich (>=15.0.0,<16.0.0)", "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\"", "flask (>=3.0,<4.0)"]
+dependencies = [
+    "rich (>=15.0.0,<16.0.0)",
+    "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\"",
+    "flask (>=3.0,<4.0)",
+]
 
 [project.scripts]
 scop = "scop.cli:main"
@@ -76,7 +80,10 @@ select = [
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ARG"] # Tests use `assert` idiomatically; unused-arg false-positives on fixtures
+"tests/**/*.py" = [
+    "S101",
+    "ARG",
+] # Tests use `assert` idiomatically; unused-arg false-positives on fixtures
 "tests/conftest.py" = ["S101"] # conftest _fix() runs trusted dev tools
 # TID251 carve-outs — third-party allowed only in the one declared submodule
 "scop/utils/net.py" = ["TID251"]
