@@ -67,6 +67,12 @@ description = "Take a new snapshot"
 kind = "action"
 
 [[room.command.param]]
+name = "path"
+kind = "positional"
+type = "string"
+metavar = "PATH"
+
+[[room.command.param]]
 name = "--dry-run"
 kind = "flag"
 type = "boolean"

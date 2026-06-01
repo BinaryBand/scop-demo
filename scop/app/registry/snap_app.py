@@ -19,6 +19,7 @@ _ROOT_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
+                {"name": "path", "kind": "positional", "metavar": "PATH"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -165,6 +166,7 @@ _CREATE_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
+                {"name": "path", "kind": "positional", "metavar": "PATH"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -287,9 +289,26 @@ class SnapApp(BaseApp):
                 | ListSnapshotsService
                 | SnapshotStatusService
             )
+            raw_path = args.get("path")
+            if not raw_path:
+                stream.emit(
+                    SyslogMessage(
+                        pri=3,
+                        msgid=MSGID.PAGE_END,
+                        room=room,
+                        msg="error: path argument is required",
+                        data={},
+                    )
+                )
+                stream.resolve(
+                    ok=False,
+                    data=SyslogMessage(pri=3, msgid=MSGID.PAGE_END, room=room, msg="", data={}),
+                )
+                return
             service = CreateSnapshotService(
                 port=port,
                 room=room,
+                path=str(raw_path),
                 dry_run=args.get("dry_run", False),
                 recursive=args.get("recursive", False),
                 force=args.get("force", False),

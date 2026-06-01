@@ -15,7 +15,7 @@ class SnapshotPort(Port):
 
     @abstractmethod
     def create_snapshot(
-        self, *, dry_run: bool = False, recursive: bool = False, force: bool = False
+        self, *, path: str, dry_run: bool = False, recursive: bool = False, force: bool = False
     ) -> SnapshotRecord: ...
 
     @abstractmethod

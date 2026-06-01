@@ -100,9 +100,6 @@ convention = "google"
     "ANN001",
 ] # Marker bases — stream annotation pending (see docs/TODO Rule 6)
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
-"scop/adapters/snapshot_adapter.py" = [
-    "ARG002",
-] # Stub — kwargs are part of SnapshotPort interface
 "scop/app/registry/diff_app.py" = [
     "ARG002",
 ] # Shell — args contract from BaseApp, not yet used

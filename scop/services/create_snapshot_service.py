@@ -11,12 +11,14 @@ class CreateSnapshotService(Service):
         self,
         port: SnapshotPort,
         room: str,
+        path: str,
         dry_run: bool = False,
         recursive: bool = False,
         force: bool = False,
     ) -> None:
         self._port = port
         self._room = room
+        self._path = path
         self._dry_run = dry_run
         self._recursive = recursive
         self._force = force
@@ -43,7 +45,9 @@ class CreateSnapshotService(Service):
             )
         )
 
-        snap = self._port.create_snapshot(dry_run=dr, recursive=self._recursive, force=self._force)
+        snap = self._port.create_snapshot(
+            path=self._path, dry_run=dr, recursive=self._recursive, force=self._force
+        )
 
         stream.emit(
             SyslogMessage(

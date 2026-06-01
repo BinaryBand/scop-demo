@@ -68,6 +68,7 @@ def _build_parser() -> argparse.ArgumentParser:
     snap_sub = snapshot.add_subparsers(dest="snapshot_action")
 
     create = snap_sub.add_parser("create", add_help=False, help="Take a new snapshot")
+    create.add_argument("path", nargs="?", default=None, help="Directory to snapshot")
     create.add_argument("--help", "-h", action="store_true", help="Show create options")
     create.add_argument("--dry-run", "-n", action="store_true")
     create.add_argument("--recursive", "-r", action="store_true")
