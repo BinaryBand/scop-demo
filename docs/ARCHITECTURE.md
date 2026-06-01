@@ -140,6 +140,43 @@ select = [
 | 11 | **Depth import rule** — a file may only import from deeper modules; never from a neighbour or anything closer to root. `app/dispatcher.py` resolves this by placing concrete apps one level deeper under `app/registry/` | ast-grep |
 | 12 | **`TYPE_CHECKING` banned** — all imports must work at runtime; use `from __future__ import annotations` for forward references. Guards hide circular-import violations that should be fixed structurally. | ruff `TID251` banned-api + `FA` |
 
+## Import Allowlist
+
+The standard library is universally permitted in every layer without restriction. Third-party imports are narrowly scoped — anything not listed below is forbidden.
+
+`adapters/` is the only layer with an open third-party allowlist; its permitted imports are determined by the port contract it fulfils, not by a global list.
+
+### Layer allowlist
+
+| Layer | Permitted third-party | Note |
+| --- | --- | --- |
+| `models/` | `pydantic` | `BaseModel` with `frozen=True` satisfies Rule 6 alongside `@dataclass(frozen=True)` |
+| `ports/` | none | stdlib `abc` + `typing` only |
+| `services/` | none | stdlib only |
+| `app/` | none | stdlib only |
+| `adapters/` | port-scoped | whatever the implemented port requires |
+
+### `utils/` submodule allowlist
+
+Each submodule is restricted to the third-party packages listed. Importing a listed package from the wrong submodule is a violation — even if the package itself is permitted somewhere else.
+
+| Submodule | Permitted third-party | Key stdlib |
+| --- | --- | --- |
+| `fs` | none | `pathlib`, `shutil`, `os`, `glob` |
+| `proc` | none | `subprocess`, `shutil`, `os` |
+| `net` | `httpx` | `urllib`, `http`, `socket` |
+| `fmt` | `pyyaml`, `tomli` | `json`, `csv`, `base64`, `tomllib` |
+| `text` | none | `re`, `textwrap`, `difflib`, `unicodedata` |
+| `env` | none | `os`, `sys`, `platform` |
+| `time` | none | `datetime`, `time`, `zoneinfo` |
+| `hash` | none | `hashlib`, `hmac` |
+| `crypto` | `cryptography` | `secrets` |
+| `archive` | none | `zipfile`, `tarfile`, `gzip`, `bz2`, `lzma` |
+| `concurrent` | none | `asyncio`, `threading`, `concurrent.futures`, `queue` |
+| `collect` | none | `itertools`, `functools`, `collections` |
+
+**Enforcement pattern:** ban the package globally via `TID251`, then carve out the one permitted submodule with `per-file-ignores`:
+
 ## AppDispatcher
 
 `AppDispatcher` lives in `app/dispatcher.py`. Concrete apps live one level deeper under `app/registry/`, satisfying the depth import rule — `dispatcher.py` imports downward into `registry/`, never across siblings.

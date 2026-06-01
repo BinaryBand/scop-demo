@@ -30,6 +30,22 @@ def resolve_executable(name: str) -> str:
     return path
 
 
+def executable_exists(name: str) -> bool:
+    """Return True if *name* can be resolved from PATH."""
+    return shutil.which(name) is not None
+
+
+def env_var(name: str) -> str | None:
+    """Return environment variable value, or None when unset."""
+    return os.getenv(name)
+
+
+def env_without(*keys: str) -> dict[str, str]:
+    """Return a copy of os.environ with the provided keys removed."""
+    blocked = set(keys)
+    return {k: v for k, v in os.environ.items() if k not in blocked}
+
+
 def run_resolved(
     cmd: Iterable[str],
     /,
@@ -66,4 +82,10 @@ def run_resolved(
     )
 
 
-__all__ = ["resolve_executable", "run_resolved"]
+__all__ = [
+    "env_var",
+    "env_without",
+    "executable_exists",
+    "resolve_executable",
+    "run_resolved",
+]

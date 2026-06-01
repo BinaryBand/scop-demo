@@ -1,0 +1,129 @@
+---
+# Global deny-by-default for external imports.
+# This baseline allows internal scop.* imports and stdlib modules used under ARCHITECTURE.md.
+id: import-allowlist-global
+language: python
+severity: error
+message: >
+  External import '$MOD' is outside the architecture allowlist.
+  Allowed globally: scop.* and stdlib modules; third-party is only allowed in documented layer/submodule carve-outs.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
+files:
+  - "scop/**/*.py"
+  - "tests/**/*.py"
+ignores:
+  - "scop/cli.py"
+  - "scop/adapters/**/*.py"
+  - "scop/models/**/*.py"
+  - "scop/utils/net.py"
+  - "scop/utils/net/**/*.py"
+  - "scop/utils/fmt.py"
+  - "scop/utils/fmt/**/*.py"
+  - "scop/utils/crypto.py"
+  - "scop/utils/crypto/**/*.py"
+
+---
+# models/: stdlib + pydantic (Rule 6 note in ARCHITECTURE.md)
+id: import-allowlist-models
+language: python
+severity: error
+message: >
+  In models/, external import '$MOD' is outside the models allowlist.
+  Allowed here: stdlib, scop.*, and pydantic.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|pydantic)(?:\\..*)?$"
+files:
+  - "scop/models/**/*.py"
+
+---
+# utils/net: stdlib + httpx
+id: import-allowlist-utils-net
+language: python
+severity: error
+message: >
+  In utils/net, external import '$MOD' is outside the net allowlist.
+  Allowed here: stdlib, scop.*, and httpx.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|httpx)(?:\\..*)?$"
+files:
+  - "scop/utils/net.py"
+  - "scop/utils/net/**/*.py"
+
+---
+# utils/fmt: stdlib + pyyaml + tomli
+id: import-allowlist-utils-fmt
+language: python
+severity: error
+message: >
+  In utils/fmt, external import '$MOD' is outside the fmt allowlist.
+  Allowed here: stdlib, scop.*, and yaml/tomli.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|yaml|tomli)(?:\\..*)?$"
+files:
+  - "scop/utils/fmt.py"
+  - "scop/utils/fmt/**/*.py"
+
+---
+# utils/crypto: stdlib + cryptography
+id: import-allowlist-utils-crypto
+language: python
+severity: error
+message: >
+  In utils/crypto, external import '$MOD' is outside the crypto allowlist.
+  Allowed here: stdlib, scop.*, and cryptography.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|cryptography)(?:\\..*)?$"
+files:
+  - "scop/utils/crypto.py"
+  - "scop/utils/crypto/**/*.py"

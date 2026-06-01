@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from scop.utils.proc import run_resolved
+from scop.utils.proc import env_without, run_resolved
 
-_ENV_WITHOUT_VIRTUAL_ENV = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+_ENV_WITHOUT_VIRTUAL_ENV = env_without("VIRTUAL_ENV")
 
 ROOT = Path(__file__).resolve().parents[2]
 
