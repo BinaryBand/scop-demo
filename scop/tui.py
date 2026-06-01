@@ -90,6 +90,9 @@ class ScopTuiApp(App[None]):
     #right { width: 1fr; }
     #back-btn { margin: 1 1 0 1; width: auto; display: none; }
     #main { height: 1fr; padding: 0 1; }
+    #cta-slot { height: auto; margin-bottom: 1; }
+    #cta-row { height: auto; }
+    #cta-row Button { margin-right: 1; min-width: 12; }
     #activity { height: 8; border-top: tall $primary; }
     .stat { margin-bottom: 1; }
     DataTable { height: auto; }
@@ -144,7 +147,7 @@ class ScopTuiApp(App[None]):
             with Vertical(id="right"):
                 yield Button("← Back", id="back-btn", variant="default")
                 with ScrollableContainer(id="main"):
-                    pass
+                    yield Vertical(id="cta-slot")
         with ScrollableContainer(id="activity"):
             yield RichLog(id="log", markup=True, highlight=False)
         yield Footer()
@@ -228,6 +231,15 @@ class ScopTuiApp(App[None]):
         encoded = item_id[5:]
         return encoded.replace("__", "/")
 
+    def _cta_id_for_key(self, key: str) -> str:
+        return f"cta-{key.replace('/', '__')}"
+
+    def _key_from_cta_id(self, item_id: str) -> str | None:
+        if not item_id.startswith("cta-"):
+            return None
+        encoded = item_id[4:]
+        return encoded.replace("__", "/")
+
     def _ensure_page(self, page: _PageSpec) -> None:
         if page.key in self._pages:
             return
@@ -266,7 +278,8 @@ class ScopTuiApp(App[None]):
             label = title
 
         if len(subcommands) == 1:
-            query_flags = [["--status"], ["--list", "--all"], ["--help"]]
+            # Render list first so primary records stay visible near the top.
+            query_flags = [["--list", "--all"], ["--status"], ["--help"]]
             parent_key = "home"
         else:
             query_flags = [["--help"]]
@@ -342,10 +355,16 @@ class ScopTuiApp(App[None]):
         self._navigate(key)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "back-btn":
+        button_id = event.button.id or ""
+        if button_id == "back-btn":
             current = self._page_by_key(self._current_key)
             parent_key = current.parent_key if current else None
             self._navigate(parent_key or "home")
+            return
+
+        cta_key = self._key_from_cta_id(button_id)
+        if cta_key is not None:
+            self._navigate(cta_key)
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
@@ -410,7 +429,13 @@ class ScopTuiApp(App[None]):
                     for lbl in item.query(Label).results(Label):
                         lbl.update(f"{icon} {bare}")
                     break
-        self.query_one("#main", ScrollableContainer).remove_children()
+        main = self.query_one("#main", ScrollableContainer)
+        cta_slot = self.query_one("#cta-slot", Vertical)
+        cta_slot.remove_children()
+        for child in list(main.children):
+            if child.id == "cta-slot":
+                continue
+            child.remove()
         self._tables.clear()
         self._lists.clear()
         self._procs.clear()
@@ -504,6 +529,30 @@ class ScopTuiApp(App[None]):
             return
         if e["id"] == "help":
             self._ingest_help_items(state.items)
+
+            current_page = self._page_by_key(self._current_key)
+            cta_entries: list[tuple[str, _PageSpec]] = []
+            if current_page is not None:
+                for key in self._page_order:
+                    page = self._pages[key]
+                    if page.parent_key != current_page.key:
+                        continue
+                    cta_label = (
+                        page.base_args[-1].replace("-", " ").title() if page.base_args else page.key
+                    )
+                    cta_entries.append((cta_label, page))
+
+            cta_slot = self.query_one("#cta-slot", Vertical)
+            cta_slot.remove_children()
+            if cta_entries:
+                cta_slot.mount(Static("[bold]Actions[/bold]"))
+                cta_row = Horizontal(id="cta-row")
+                cta_slot.mount(cta_row)
+                for label, page in cta_entries:
+                    cta_row.mount(
+                        Button(label, id=self._cta_id_for_key(page.key), variant="primary")
+                    )
+
         main = self.query_one("#main", ScrollableContainer)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(state.items, 1):
