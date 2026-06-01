@@ -28,7 +28,9 @@ class SnapshotAdapter(Adapter, SnapshotPort):
             )
         return snaps
 
-    def create_snapshot(self, *, dry_run: bool = False) -> SnapshotRecord:
+    def create_snapshot(
+        self, *, dry_run: bool = False, recursive: bool = False, force: bool = False
+    ) -> SnapshotRecord:
         # TODO: hash working tree, write snapshot file
         return SnapshotRecord(name="snap-003", files=45, size="1.3 MB", date="2026-05-30")
 

@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import sys
 from collections.abc import AsyncIterator
-from typing import Protocol
+from pathlib import Path
+from typing import IO, Protocol
 
 from scop.app.dispatcher import AppDispatcher
 
@@ -31,6 +33,17 @@ class _StreamLike(Protocol):
 # ── Argument parser ───────────────────────────────────────────────────────────
 
 
+def _add_mode_flags(p: argparse.ArgumentParser) -> None:
+    """Add global mode/IO flags to a subparser.
+
+    SUPPRESS keeps these from resetting the root parser's values when absent —
+    only an explicit flag on the command line updates the namespace.
+    """
+    p.add_argument("--verbose", "-v", action="store_true", default=argparse.SUPPRESS)
+    p.add_argument("--quiet", "-q", action="store_true", default=argparse.SUPPRESS)
+    p.add_argument("--output", "-o", metavar="FILE", default=argparse.SUPPRESS)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="scop",
@@ -41,6 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="store_true", help="Show version")
     p.add_argument("--verbose", "-v", action="store_true", help="Include debug output")
     p.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
+    p.add_argument("--output", "-o", metavar="FILE", help="Write output to FILE instead of stdout")
 
     sub = p.add_subparsers(dest="command")
 
@@ -49,6 +63,7 @@ def _build_parser() -> argparse.ArgumentParser:
     snapshot.add_argument("--status", action="store_true", help="Show snapshot stats")
     snapshot.add_argument("--list", "-l", action="store_true", help="List snapshots")
     snapshot.add_argument("--all", "-a", action="store_true", help="Expand list scope")
+    _add_mode_flags(snapshot)
 
     snap_sub = snapshot.add_subparsers(dest="snapshot_action")
 
@@ -56,11 +71,14 @@ def _build_parser() -> argparse.ArgumentParser:
     create.add_argument("--help", "-h", action="store_true", help="Show create options")
     create.add_argument("--dry-run", "-n", action="store_true")
     create.add_argument("--recursive", "-r", action="store_true")
+    create.add_argument("--force", "-f", action="store_true")
+    _add_mode_flags(create)
 
     diff = snap_sub.add_parser("diff", add_help=False, help="Compare two snapshots")
     diff.add_argument("--help", "-h", action="store_true", help="Show diff options")
     diff.add_argument("--from", dest="from_snap")
     diff.add_argument("--to", dest="to_snap")
+    _add_mode_flags(diff)
 
     return p
 
@@ -68,8 +86,8 @@ def _build_parser() -> argparse.ArgumentParser:
 # ── Stream renderer ───────────────────────────────────────────────────────────
 
 
-async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool) -> bool:
-    """Consume a stream and emit SCOP NDJSON lines to stdout."""
+async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[str]) -> bool:
+    """Consume a stream and emit SCOP NDJSON lines to out."""
     async for event in stream:
         pri = event.pri
         raw_msgid = getattr(event, "msgid", "")
@@ -80,7 +98,7 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool) -> bool:
         if quiet and msgid_name.endswith("PROCESS_LOG"):
             continue
 
-        sys.stdout.write(f"{event.to_ndjson()}\n")
+        out.write(f"{event.to_ndjson()}\n")
 
     result = stream.result
     if result is None:
@@ -109,11 +127,20 @@ async def _main(argv: list[str] | None = None) -> int:
 
     verbose: bool = args.pop("verbose", False)
     quiet: bool = args.pop("quiet", False)
+    output_path: str | None = args.pop("output", None)
     command = _resolve_command(args)
 
     dispatcher = AppDispatcher.default()
     stream = dispatcher.dispatch(command, args)
-    ok = await _render(stream, verbose=verbose, quiet=quiet)
+
+    with contextlib.ExitStack() as stack:
+        out: IO[str] = (
+            stack.enter_context(Path(output_path).open("w", encoding="utf-8"))
+            if output_path is not None
+            else sys.stdout
+        )
+        ok = await _render(stream, verbose=verbose, quiet=quiet, out=out)
+
     return 0 if ok else 1
 
 

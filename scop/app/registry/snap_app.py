@@ -48,7 +48,11 @@ class SnapApp(BaseApp):
                 | SnapshotStatusService
             )
             service = CreateSnapshotService(
-                port=port, room=room, dry_run=args.get("dry_run", False)
+                port=port,
+                room=room,
+                dry_run=args.get("dry_run", False),
+                recursive=args.get("recursive", False),
+                force=args.get("force", False),
             )
             await service.run(stream)
         elif action == "diff":

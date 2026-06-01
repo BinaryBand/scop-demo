@@ -16,5 +16,5 @@ def _fix(cmd: list[str]) -> None:
 def pytest_sessionstart() -> None:
     if env_var("CI"):
         return
-    _fix(["ruff", "check", "--fix", "scop", "tests"])
     _fix(["ruff", "format", "scop", "tests"])
+    _fix(["ruff", "check", "--fix", "scop", "tests"])
