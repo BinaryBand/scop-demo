@@ -1,95 +1,23 @@
-"""UI-introspection helpers for SCOP applications.
-
-This module "explores" AppDispatcher by exposing a stable, typed view of:
-- registered commands and their resolved app classes,
-- derived room mapping used during dispatch,
-- one-off route explanation for a command + args payload.
-
-It is intentionally read-only: no streams are spawned and no app coroutines are run.
-"""
-
 from __future__ import annotations
 
 import argparse
 import json
 import sys
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
-from scop.app.dispatcher import AppDispatcher
+from scop.models.manifest import (
+    ManifestCommand,
+    ManifestParam,
+    ManifestRoomList,
+    ManifestRoomStat,
+    ScopManifest,
+)
 from scop.utils.proc import run_resolved
 
-
-@dataclass(frozen=True)
-class CommandRoute:
-    """Single dispatcher route record."""
-
-    command: str
-    room: str | None
-    app_class: str
-
-
-@dataclass(frozen=True)
-class DispatcherOverview:
-    """Serializable overview of AppDispatcher wiring."""
-
-    runtime_class: str
-    routes: list[CommandRoute]
-
-
-def _route_sort_key(route: CommandRoute) -> tuple[int, str]:
-    # Keep root route first, then alphabetical command order.
-    return (0 if route.command == "" else 1, route.command)
-
-
-def get_dispatcher_overview() -> DispatcherOverview:
-    """Return a structured snapshot of default AppDispatcher wiring."""
-    dispatcher = AppDispatcher.default()
-    registry = dispatcher._registry
-    runtime = dispatcher._runtime
-
-    routes: list[CommandRoute] = []
-    for command, app in registry.items():
-        room = None if command == "" else command
-        routes.append(
-            CommandRoute(
-                command=command,
-                room=room,
-                app_class=app.__class__.__name__,
-            )
-        )
-
-    routes.sort(key=_route_sort_key)
-    return DispatcherOverview(runtime_class=runtime.__class__.__name__, routes=routes)
-
-
-def explain_dispatch(command: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Explain how AppDispatcher would route a command.
-
-    The returned dictionary mirrors AppDispatcher.dispatch routing logic, including
-    the injected ``_room`` key, without creating a stream or spawning app.run().
-    """
-    dispatcher = AppDispatcher.default()
-    resolved_app = dispatcher._resolve(command)  # intentional internal inspection
-    room = None if command == "" else command
-
-    merged_args: dict[str, Any] = dict(args or {})
-    merged_args["_room"] = room
-
-    return {
-        "command": command,
-        "room": room,
-        "app_class": resolved_app.__class__.__name__,
-        "args": merged_args,
-    }
-
-
-def _json_dumps(payload: object, *, pretty: bool) -> str:
-    if pretty:
-        return json.dumps(payload, indent=2, sort_keys=True)
-    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+DEFAULT_OUT = "scop.toml"
 
 
 def _run_scop_ndjson(args: list[str]) -> list[dict[str, object]]:
@@ -114,23 +42,15 @@ def _run_scop_ndjson(args: list[str]) -> list[dict[str, object]]:
     return events
 
 
-def _as_obj_dict(value: object) -> dict[str, object] | None:
-    if not isinstance(value, dict):
-        return None
-    return cast(dict[str, object], value)
-
-
-def _split_command_tokens(command: str) -> list[str]:
-    # SCOP help command values are plain command lines; whitespace tokenization
-    # keeps this helper stdlib-allowlist friendly in this module.
-    return [token for token in command.strip().split() if token]
-
-
 def _try_run_scop_ndjson(args: list[str]) -> list[dict[str, object]]:
     try:
         return _run_scop_ndjson(args)
     except RuntimeError:
         return []
+
+
+def _split_command_tokens(command: str) -> list[str]:
+    return [token for token in command.strip().split() if token]
 
 
 def _find_page_begin(events: list[dict[str, object]]) -> tuple[str, str, str]:
@@ -188,38 +108,14 @@ def _list_schema(events: list[dict[str, object]]) -> dict[str, object] | None:
 
 
 def _display_name(exec_command: str) -> str:
-    tokens = [t for t in _split_command_tokens(exec_command) if not t.startswith("-")]
-    if not tokens:
-        tokens = [exec_command]
-    leaf = tokens[-1] if tokens else exec_command
+    tokens = _split_command_tokens(exec_command)
+    flag_tokens = [token for token in tokens if token.startswith("--")]
+    if flag_tokens:
+        leaf = flag_tokens[0].lstrip("-")
+    else:
+        non_flag_tokens = [token for token in tokens if not token.startswith("-")]
+        leaf = non_flag_tokens[-1] if non_flag_tokens else exec_command
     return leaf.replace("-", " ").title()
-
-
-def _normalize_param(param: dict[str, object]) -> dict[str, object]:
-    normalized: dict[str, object] = {}
-    for key in (
-        "name",
-        "kind",
-        "type",
-        "short",
-        "metavar",
-        "description",
-        "required",
-        "repeatable",
-        "default",
-        "pattern",
-        "choices",
-        "min",
-        "max",
-        "format",
-        "min_length",
-        "max_length",
-    ):
-        value = param.get(key)
-        if value is None:
-            continue
-        normalized[key] = value
-    return normalized
 
 
 def _route_room_for_exec(exec_command: str) -> str | None:
@@ -234,7 +130,6 @@ def _route_room_for_exec(exec_command: str) -> str | None:
 def _discover_room(exec_tokens: list[str]) -> dict[str, object]:
     help_events = _run_scop_ndjson([*exec_tokens, "--help"])
     room_id, title, subtitle = _find_page_begin(help_events)
-
     room: dict[str, object] = {"id": room_id, "title": title, "subtitle": subtitle}
 
     status_events = _try_run_scop_ndjson([*exec_tokens, "--status"])
@@ -254,13 +149,13 @@ def _discover_room(exec_tokens: list[str]) -> dict[str, object]:
         if not isinstance(command_value, str) or not isinstance(description_value, str):
             continue
 
+        kind_raw = help_value.get("kind", "action")
+        kind = kind_raw if isinstance(kind_raw, str) else "action"
         cmd: dict[str, object] = {
             "name": _display_name(command_value),
             "exec": command_value,
             "description": description_value,
-            "kind": help_value.get("kind", "action")
-            if isinstance(help_value.get("kind", "action"), str)
-            else "action",
+            "kind": kind,
         }
 
         raw_params = help_value.get("params")
@@ -281,6 +176,7 @@ def _discover_room(exec_tokens: list[str]) -> dict[str, object]:
             cmd["navigates"] = navigates
 
         commands.append(cmd)
+
     room["commands"] = commands
     return room
 
@@ -306,11 +202,9 @@ def _common_global_params(rooms: list[dict[str, object]]) -> list[dict[str, obje
                 if raw_dict is None:
                     continue
                 name = raw_dict.get("name")
-                if not isinstance(name, str):
-                    continue
                 kind = raw_dict.get("kind")
                 required = raw_dict.get("required", False)
-                if kind == "flag" and required is False:
+                if isinstance(name, str) and kind == "flag" and required is False:
                     by_name[name] = dict(raw_dict)
             if by_name:
                 action_param_sets.append(by_name)
@@ -322,11 +216,7 @@ def _common_global_params(rooms: list[dict[str, object]]) -> list[dict[str, obje
     for by_name in action_param_sets[1:]:
         common_names &= set(by_name)
 
-    globals_out: list[dict[str, object]] = []
-    for name in sorted(common_names):
-        template = dict(action_param_sets[0][name])
-        globals_out.append(template)
-    return globals_out
+    return [dict(action_param_sets[0][name]) for name in sorted(common_names)]
 
 
 def _remove_global_params(
@@ -371,16 +261,15 @@ def _remove_global_params(
 
         room_copy["commands"] = new_commands
         out_rooms.append(room_copy)
+
     return out_rooms
 
 
 def discover_manifest_draft() -> dict[str, object]:
-    """Discover a draft SCOP-M manifest from live CLI discovery calls."""
     root_help = _run_scop_ndjson(["--help"])
     _root_room, root_title, root_subtitle = _find_page_begin(root_help)
 
     discovered_rooms: dict[str, dict[str, object]] = {}
-
     root_room: dict[str, object] = {
         "id": "",
         "title": root_title or "scop",
@@ -394,9 +283,8 @@ def discover_manifest_draft() -> dict[str, object]:
         description = item.get("description")
         if not isinstance(command, str) or not isinstance(description, str):
             continue
-        kind = (
-            item.get("kind", "action") if isinstance(item.get("kind", "action"), str) else "action"
-        )
+        kind_raw = item.get("kind", "action")
+        kind = kind_raw if isinstance(kind_raw, str) else "action"
         cmd: dict[str, object] = {
             "name": _display_name(command),
             "exec": command,
@@ -427,13 +315,14 @@ def discover_manifest_draft() -> dict[str, object]:
             if cmd_dict is None:
                 continue
             exec_command = cmd_dict.get("exec")
-            if not isinstance(exec_command, str):
-                continue
             nav_room = cmd_dict.get("navigates")
-            if not isinstance(nav_room, str) or nav_room in discovered_rooms:
+            if not isinstance(exec_command, str) or not isinstance(nav_room, str):
+                continue
+            if nav_room in discovered_rooms:
                 continue
             if any(tok.startswith("-") for tok in _split_command_tokens(exec_command)):
                 continue
+
             nested = _discover_room(_split_command_tokens(exec_command))
             nested_id = nested.get("id")
             if isinstance(nested_id, str) and nested_id == nav_room:
@@ -455,6 +344,260 @@ def discover_manifest_draft() -> dict[str, object]:
     }
 
 
+def _as_obj_dict(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    return value
+
+
+def _load_app_defaults() -> dict[str, str]:
+    pyproject = Path("pyproject.toml")
+    if not pyproject.exists():
+        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": "0.1.2"}
+
+    payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    project = _as_obj_dict(payload.get("project"))
+    if project is None:
+        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": "0.1.2"}
+
+    return {
+        "name": str(project.get("name", "scop")),
+        "version": str(project.get("version", "0.1.0")),
+        "description": str(project.get("description", "")),
+        "scop_version": "0.1.2",
+    }
+
+
+def _normalize_param(raw: dict[str, object]) -> dict[str, object]:
+    normalized: dict[str, object] = {}
+    for key in (
+        "name",
+        "kind",
+        "type",
+        "short",
+        "metavar",
+        "description",
+        "required",
+        "repeatable",
+        "default",
+        "pattern",
+        "choices",
+        "min",
+        "max",
+        "format",
+        "min_length",
+        "max_length",
+    ):
+        value = raw.get(key)
+        if value is None:
+            continue
+        normalized[key] = value
+
+    # Help payloads may omit `type` on some flags; infer a safe default.
+    if "type" not in normalized:
+        kind = normalized.get("kind")
+        has_metavar = isinstance(normalized.get("metavar"), str)
+        if kind == "flag" and not has_metavar:
+            normalized["type"] = "boolean"
+        else:
+            normalized["type"] = "string"
+
+    return normalized
+
+
+def _normalize_discovered_to_manifest_payload(draft: dict[str, object]) -> dict[str, object]:
+    app_defaults = _load_app_defaults()
+    app_raw = _as_obj_dict(draft.get("app"))
+
+    app: dict[str, object] = {
+        "name": app_defaults["name"],
+        "version": app_defaults["version"],
+        "description": app_defaults["description"],
+        "scop_version": app_defaults["scop_version"],
+        "global_param": [],
+    }
+
+    if app_raw is not None:
+        for key in ("name", "version", "description", "scop_version"):
+            value = app_raw.get(key)
+            if isinstance(value, str) and value:
+                app[key] = value
+
+    global_raw = draft.get("app_global_param")
+    if isinstance(global_raw, list):
+        params: list[dict[str, object]] = []
+        for raw in global_raw:
+            raw_dict = _as_obj_dict(raw)
+            if raw_dict is None:
+                continue
+            params.append(_normalize_param(raw_dict))
+        app["global_param"] = params
+
+    room_payloads: list[dict[str, object]] = []
+    rooms_raw = draft.get("rooms")
+    if isinstance(rooms_raw, list):
+        for raw_room in rooms_raw:
+            room_dict = _as_obj_dict(raw_room)
+            if room_dict is None:
+                continue
+
+            room: dict[str, object] = {
+                "id": room_dict.get("id", ""),
+                "title": room_dict.get("title", ""),
+                "command": [],
+            }
+
+            subtitle = room_dict.get("subtitle")
+            if isinstance(subtitle, str) and subtitle:
+                room["subtitle"] = subtitle
+
+            icon = room_dict.get("icon")
+            if isinstance(icon, str) and icon:
+                room["icon"] = icon
+
+            stats_raw = room_dict.get("stats")
+            if isinstance(stats_raw, list):
+                stats: list[dict[str, object]] = []
+                for raw_stat in stats_raw:
+                    stat_dict = _as_obj_dict(raw_stat)
+                    if stat_dict is None:
+                        continue
+                    item: dict[str, object] = {}
+                    for key in ("id", "label", "type", "unit"):
+                        value = stat_dict.get(key)
+                        if value is not None:
+                            item[key] = value
+                    if {"id", "label", "type"}.issubset(item):
+                        stats.append(item)
+                if stats:
+                    room["stat"] = stats
+
+            list_raw = _as_obj_dict(room_dict.get("list"))
+            if list_raw is not None:
+                list_item: dict[str, object] = {}
+                schema = list_raw.get("schema")
+                if isinstance(schema, list):
+                    cols = [col for col in schema if isinstance(col, str)]
+                    if cols:
+                        list_item["schema"] = cols
+                display_hint = list_raw.get("display_hint")
+                if isinstance(display_hint, str):
+                    list_item["display_hint"] = display_hint
+                if "schema" in list_item:
+                    room["list"] = list_item
+
+            commands_raw = room_dict.get("commands")
+            commands: list[dict[str, object]] = []
+            if isinstance(commands_raw, list):
+                for raw_command in commands_raw:
+                    command_dict = _as_obj_dict(raw_command)
+                    if command_dict is None:
+                        continue
+                    name = command_dict.get("name")
+                    exec_command = command_dict.get("exec")
+                    description = command_dict.get("description")
+                    kind = command_dict.get("kind")
+                    if not (
+                        isinstance(name, str)
+                        and isinstance(exec_command, str)
+                        and isinstance(description, str)
+                        and isinstance(kind, str)
+                    ):
+                        continue
+
+                    cmd: dict[str, object] = {
+                        "name": name,
+                        "exec": exec_command,
+                        "description": description,
+                        "kind": kind,
+                    }
+
+                    navigates = command_dict.get("navigates")
+                    if isinstance(navigates, str) and navigates:
+                        cmd["navigates"] = navigates
+
+                    raw_params = command_dict.get("params")
+                    if isinstance(raw_params, list):
+                        params: list[dict[str, object]] = []
+                        for raw_param in raw_params:
+                            param_dict = _as_obj_dict(raw_param)
+                            if param_dict is None:
+                                continue
+                            params.append(_normalize_param(param_dict))
+                        if params:
+                            cmd["param"] = params
+
+                    commands.append(cmd)
+
+            room["command"] = commands
+            room_payloads.append(room)
+
+    room_payloads.sort(key=lambda item: str(item.get("id", "")))
+    return {"app": app, "room": room_payloads}
+
+
+def _manifest_to_dict(manifest: ScopManifest) -> dict[str, object]:
+    app = {
+        "name": manifest.app.name,
+        "version": manifest.app.version,
+        "description": manifest.app.description,
+        "scop_version": manifest.app.scop_version,
+        "global_param": [_param_to_dict(param) for param in manifest.app.global_param],
+    }
+
+    rooms: list[dict[str, object]] = []
+    for room in manifest.room:
+        room_dict: dict[str, object] = {
+            "id": room.id,
+            "title": room.title,
+            "command": [_command_to_dict(command) for command in room.command],
+        }
+        if room.subtitle is not None:
+            room_dict["subtitle"] = room.subtitle
+        if room.icon is not None:
+            room_dict["icon"] = room.icon
+        if room.stat:
+            room_dict["stat"] = [_stat_to_dict(stat) for stat in room.stat]
+        if room.list_ is not None:
+            room_dict["list"] = _list_to_dict(room.list_)
+        rooms.append(room_dict)
+
+    return {"app": app, "room": rooms}
+
+
+def _param_to_dict(param: ManifestParam) -> dict[str, object]:
+    item = asdict(param)
+    return {key: value for key, value in item.items() if value is not None}
+
+
+def _command_to_dict(command: ManifestCommand) -> dict[str, object]:
+    item: dict[str, object] = {
+        "name": command.name,
+        "exec": command.exec,
+        "description": command.description,
+        "kind": command.kind,
+    }
+    if command.navigates is not None:
+        item["navigates"] = command.navigates
+    if command.param:
+        item["param"] = [_param_to_dict(param) for param in command.param]
+    return item
+
+
+def _stat_to_dict(stat: ManifestRoomStat) -> dict[str, object]:
+    item: dict[str, object] = {"id": stat.id, "label": stat.label, "type": stat.type}
+    if stat.unit is not None:
+        item["unit"] = stat.unit
+    return item
+
+
+def _list_to_dict(listing: ManifestRoomList) -> dict[str, object]:
+    item: dict[str, object] = {"schema": listing.schema_}
+    if listing.display_hint is not None:
+        item["display_hint"] = listing.display_hint
+    return item
+
+
 def _toml_scalar(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -465,10 +608,10 @@ def _toml_scalar(value: object) -> str:
     return json.dumps(str(value))
 
 
-def _manifest_to_toml(draft: dict[str, object]) -> str:
+def _manifest_dict_to_toml(payload: dict[str, object]) -> str:
     lines: list[str] = []
 
-    app = _as_obj_dict(draft.get("app"))
+    app = _as_obj_dict(payload.get("app"))
     if app is not None:
         lines.append("[app]")
         lines.extend(
@@ -478,26 +621,44 @@ def _manifest_to_toml(draft: dict[str, object]) -> str:
         )
         lines.append("")
 
-    global_params = draft.get("app_global_param")
-    if isinstance(global_params, list):
-        for param in global_params:
-            param_dict = _as_obj_dict(param)
-            if param_dict is None:
-                continue
-            lines.append("[[app.global_param]]")
-            lines.extend(
-                f"{key} = {_toml_scalar(param_dict[key])}"
-                for key in ("name", "kind", "short", "type", "metavar", "required")
-                if key in param_dict
-            )
-            lines.append("")
+        global_params = app.get("global_param")
+        if isinstance(global_params, list):
+            for param in global_params:
+                param_dict = _as_obj_dict(param)
+                if param_dict is None:
+                    continue
+                lines.append("[[app.global_param]]")
+                lines.extend(
+                    f"{key} = {_toml_scalar(param_dict[key])}"
+                    for key in (
+                        "name",
+                        "kind",
+                        "type",
+                        "short",
+                        "metavar",
+                        "description",
+                        "required",
+                        "repeatable",
+                        "default",
+                        "pattern",
+                        "choices",
+                        "min",
+                        "max",
+                        "format",
+                        "min_length",
+                        "max_length",
+                    )
+                    if key in param_dict
+                )
+                lines.append("")
 
-    rooms = draft.get("rooms")
+    rooms = payload.get("room")
     if isinstance(rooms, list):
         for room in rooms:
             room_dict = _as_obj_dict(room)
             if room_dict is None:
                 continue
+
             lines.append("[[room]]")
             lines.extend(
                 f"{key} = {_toml_scalar(room_dict[key])}"
@@ -506,7 +667,7 @@ def _manifest_to_toml(draft: dict[str, object]) -> str:
             )
             lines.append("")
 
-            stats = room_dict.get("stats")
+            stats = room_dict.get("stat")
             if isinstance(stats, list):
                 for stat in stats:
                     stat_dict = _as_obj_dict(stat)
@@ -523,18 +684,20 @@ def _manifest_to_toml(draft: dict[str, object]) -> str:
             list_def = _as_obj_dict(room_dict.get("list"))
             if list_def is not None:
                 lines.append("[room.list]")
-                if "schema" in list_def:
-                    lines.append(f"schema = {_toml_scalar(list_def['schema'])}")
-                if "display_hint" in list_def:
-                    lines.append(f"display_hint = {_toml_scalar(list_def['display_hint'])}")
+                lines.extend(
+                    f"{key} = {_toml_scalar(list_def[key])}"
+                    for key in ("schema", "display_hint")
+                    if key in list_def
+                )
                 lines.append("")
 
-            commands = room_dict.get("commands")
+            commands = room_dict.get("command")
             if isinstance(commands, list):
                 for command in commands:
                     command_dict = _as_obj_dict(command)
                     if command_dict is None:
                         continue
+
                     lines.append("[[room.command]]")
                     lines.extend(
                         f"{key} = {_toml_scalar(command_dict[key])}"
@@ -543,7 +706,7 @@ def _manifest_to_toml(draft: dict[str, object]) -> str:
                     )
                     lines.append("")
 
-                    params = command_dict.get("params")
+                    params = command_dict.get("param")
                     if isinstance(params, list):
                         for param in params:
                             param_dict = _as_obj_dict(param)
@@ -579,204 +742,53 @@ def _manifest_to_toml(draft: dict[str, object]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _normalize_manifest(value: dict[str, object]) -> dict[str, object]:
-    app: dict[str, object] = {}
-    app_global_param: list[dict[str, object]] = []
-
-    app_raw = _as_obj_dict(value.get("app"))
-    if app_raw is not None:
-        for key, raw in app_raw.items():
-            if key == "global_param":
-                continue
-            app[key] = raw
-
-        global_raw = app_raw.get("global_param")
-        if isinstance(global_raw, list):
-            for item in global_raw:
-                item_dict = _as_obj_dict(item)
-                if item_dict is not None:
-                    app_global_param.append(dict(item_dict))
-
-    if not app_global_param:
-        global_alt = value.get("app_global_param")
-        if isinstance(global_alt, list):
-            for item in global_alt:
-                item_dict = _as_obj_dict(item)
-                if item_dict is not None:
-                    app_global_param.append(dict(item_dict))
-
-    rooms: list[dict[str, object]] = []
-    rooms_raw = value.get("room")
-    if not isinstance(rooms_raw, list):
-        rooms_raw = value.get("rooms")
-
-    if isinstance(rooms_raw, list):
-        for raw_room in rooms_raw:
-            room_dict = _as_obj_dict(raw_room)
-            if room_dict is None:
-                continue
-
-            normalized_room: dict[str, object] = {}
-            for key in ("id", "title", "subtitle", "icon"):
-                if key in room_dict:
-                    normalized_room[key] = room_dict[key]
-
-            stats_raw = room_dict.get("stat")
-            if not isinstance(stats_raw, list):
-                stats_raw = room_dict.get("stats")
-            if isinstance(stats_raw, list):
-                stats: list[dict[str, object]] = []
-                for raw_stat in stats_raw:
-                    stat_dict = _as_obj_dict(raw_stat)
-                    if stat_dict is not None:
-                        stats.append(dict(stat_dict))
-                if stats:
-                    normalized_room["stats"] = stats
-
-            list_raw = _as_obj_dict(room_dict.get("list"))
-            if list_raw is not None:
-                normalized_room["list"] = dict(list_raw)
-
-            commands_raw = room_dict.get("command")
-            if not isinstance(commands_raw, list):
-                commands_raw = room_dict.get("commands")
-            if isinstance(commands_raw, list):
-                commands: list[dict[str, object]] = []
-                for raw_command in commands_raw:
-                    command_dict = _as_obj_dict(raw_command)
-                    if command_dict is None:
-                        continue
-                    normalized_command = dict(command_dict)
-
-                    params_raw = command_dict.get("param")
-                    if not isinstance(params_raw, list):
-                        params_raw = command_dict.get("params")
-                    if isinstance(params_raw, list):
-                        params: list[dict[str, object]] = []
-                        for raw_param in params_raw:
-                            param_dict = _as_obj_dict(raw_param)
-                            if param_dict is not None:
-                                params.append(dict(param_dict))
-                        if params:
-                            normalized_command["params"] = params
-                    normalized_command.pop("param", None)
-                    commands.append(normalized_command)
-                if commands:
-                    normalized_room["commands"] = commands
-
-            rooms.append(normalized_room)
-
-    rooms.sort(key=lambda room: str(room.get("id", "")))
-    return {"app": app, "app_global_param": app_global_param, "rooms": rooms}
-
-
-def _comparison_summary(draft: dict[str, object], existing: dict[str, object]) -> dict[str, object]:
-    draft_norm = _normalize_manifest(draft)
-    existing_norm = _normalize_manifest(existing)
-
-    draft_ids: list[str] = []
-    draft_rooms = draft_norm.get("rooms")
-    if isinstance(draft_rooms, list):
-        for raw_room in draft_rooms:
-            room_dict = _as_obj_dict(raw_room)
-            if room_dict is None:
-                continue
-            room_id = room_dict.get("id")
-            if isinstance(room_id, str):
-                draft_ids.append(room_id)
-
-    existing_ids: list[str] = []
-    existing_rooms = existing_norm.get("rooms")
-    if isinstance(existing_rooms, list):
-        for raw_room in existing_rooms:
-            room_dict = _as_obj_dict(raw_room)
-            if room_dict is None:
-                continue
-            room_id = room_dict.get("id")
-            if isinstance(room_id, str):
-                existing_ids.append(room_id)
-
-    draft_json = json.dumps(draft_norm, sort_keys=True, separators=(",", ":"))
-    existing_json = json.dumps(existing_norm, sort_keys=True, separators=(",", ":"))
-
-    return {
-        "matches": draft_json == existing_json,
-        "draft_room_ids": sorted(draft_ids),
-        "existing_room_ids": sorted(existing_ids),
-        "missing_in_existing": sorted(set(draft_ids) - set(existing_ids)),
-        "missing_in_draft": sorted(set(existing_ids) - set(draft_ids)),
-    }
+def generate_manifest() -> ScopManifest:
+    draft = discover_manifest_draft()
+    payload = _normalize_discovered_to_manifest_payload(draft)
+    return ScopManifest.model_validate(payload)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI utility for dispatcher exploration."""
-    parser = argparse.ArgumentParser(prog="python -m scop.ui")
-    parser.add_argument(
-        "--command",
-        default=None,
-        help="Command key to explain (e.g. '', snapshot). Omit for full overview.",
+    parser = argparse.ArgumentParser(
+        prog="python scripts/generate.manifest.py",
+        description="Generate SCOP manifest by exploring live app entrypoints.",
     )
     parser.add_argument(
-        "--args-json",
-        default="{}",
-        help="JSON object of args used with --command.",
+        "--format",
+        choices=("toml", "json"),
+        default="toml",
+        help="Output format for generated manifest.",
     )
     parser.add_argument(
-        "--discover-manifest",
-        action="store_true",
-        help="Build a draft SCOP-M manifest from live --help/--status/--list discovery.",
-    )
-    parser.add_argument(
-        "--manifest-format",
-        choices=("json", "toml"),
-        default="json",
-        help="Output format when using --discover-manifest.",
-    )
-    parser.add_argument(
-        "--compare-manifest",
-        default=None,
-        help="Path to an existing manifest (e.g. scop.toml) for comparison summary.",
+        "--out",
+        default=DEFAULT_OUT,
+        help="Output path, or '-' for stdout.",
     )
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     ns = parser.parse_args(argv)
 
-    if ns.discover_manifest:
-        draft = discover_manifest_draft()
+    manifest = generate_manifest()
+    manifest_dict = _manifest_to_dict(manifest)
 
-        comparison: dict[str, object] | None = None
-        if isinstance(ns.compare_manifest, str) and ns.compare_manifest:
-            existing_path = Path(ns.compare_manifest)
-            existing_manifest = tomllib.loads(existing_path.read_text(encoding="utf-8"))
-            comparison = _comparison_summary(draft, dict(existing_manifest))
+    if ns.format == "json":
+        output = json.dumps(
+            manifest_dict,
+            indent=2 if ns.pretty else None,
+            sort_keys=ns.pretty,
+            separators=(",", ":") if not ns.pretty else None,
+        )
+        if not output.endswith("\n"):
+            output += "\n"
+    else:
+        output = _manifest_dict_to_toml(manifest_dict)
 
-        if ns.manifest_format == "toml":
-            sys.stdout.write(_manifest_to_toml(draft))
-            if comparison is not None:
-                summary = _json_dumps(comparison, pretty=True)
-                sys.stderr.write(f"\ncomparison summary:\n{summary}\n")
-            return 0
-
-        payload: dict[str, object] = {"draft": draft}
-        if comparison is not None:
-            payload["comparison"] = comparison
-        sys.stdout.write(f"{_json_dumps(payload, pretty=ns.pretty)}\n")
+    if ns.out == "-":
+        sys.stdout.write(output)
         return 0
 
-    if ns.command is None:
-        overview = get_dispatcher_overview()
-        sys.stdout.write(f"{_json_dumps(asdict(overview), pretty=ns.pretty)}\n")
-        return 0
-
-    try:
-        parsed_args = json.loads(ns.args_json)
-    except json.JSONDecodeError as exc:
-        parser.error(f"--args-json must be valid JSON: {exc}")
-
-    if not isinstance(parsed_args, dict):
-        parser.error("--args-json must decode to a JSON object")
-
-    result = explain_dispatch(ns.command, parsed_args)
-    sys.stdout.write(f"{_json_dumps(result, pretty=ns.pretty)}\n")
+    out_path = Path(ns.out)
+    out_path.write_text(output, encoding="utf-8")
+    sys.stdout.write(f"wrote {out_path}\n")
     return 0
 
 

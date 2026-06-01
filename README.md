@@ -17,35 +17,35 @@ poetry install --no-root
 ### Root
 
 ```sh
-scop                  # version + command list
-scop --version        # version only
-scop --help           # command list only
+poetry run scop                  # version + command list
+poetry run scop --version        # version only
+poetry run scop --help           # command list only
 ```
 
 ### `snapshot`
 
 ```sh
-scop snapshot                        # snapshot stats (last snap, tracked files, changes)
-scop snapshot --status               # same as above
-scop snapshot --list                 # list all snapshots as a table
-scop snapshot --list --all           # include older snapshots
-scop snapshot --help                 # available snapshot commands
+poetry run scop snapshot                        # snapshot stats (last snap, tracked files, changes)
+poetry run scop snapshot --status               # same as above
+poetry run scop snapshot --list                 # list all snapshots as a table
+poetry run scop snapshot --list --all           # include older snapshots
+poetry run scop snapshot --help                 # available snapshot commands
 ```
 
 ### `snapshot create`
 
 ```sh
-scop snapshot create                 # take a new snapshot
-scop snapshot create --dry-run       # preview without writing
-scop snapshot create --verbose       # include debug-level log events
+poetry run scop snapshot create                 # take a new snapshot
+poetry run scop snapshot create --dry-run       # preview without writing
+poetry run scop snapshot create --verbose       # include debug-level log events
 ```
 
 ### `snapshot diff`
 
 ```sh
-scop snapshot diff                   # diff the two most recent snapshots
-scop snapshot diff --from snap-001   # diff from a named snapshot
-scop snapshot diff --to   snap-003   # diff to a named snapshot
+poetry run scop snapshot diff                   # diff the two most recent snapshots
+poetry run scop snapshot diff --from snap-001   # diff from a named snapshot
+poetry run scop snapshot diff --to   snap-003   # diff to a named snapshot
 ```
 
 ---
@@ -59,20 +59,20 @@ scop snapshot diff --to   snap-003   # diff to a named snapshot
 Use `--cmd` so the TUI keeps keyboard input available:
 
 ```sh
-scop-tui --cmd "scop snapshot --list"
+poetry run scop-tui --cmd "scop snapshot --list"
 ```
 
 ### File-backed interactive mode
 
 ```sh
-scop snapshot --list > events.ndjson
-scop-tui --from events.ndjson
+poetry run scop snapshot --list > events.ndjson
+poetry run scop-tui --from events.ndjson
 ```
 
 ### Pipe mode (render-and-exit)
 
 ```sh
-scop snapshot --list | scop-tui
+poetry run scop snapshot --list | scop-tui
 ```
 
 In pipe mode, stdin carries the finite event stream, so the UI exits when EOF is reached.
@@ -90,7 +90,7 @@ In pipe mode, stdin carries the finite event stream, so the UI exits when EOF is
 Every invocation emits NDJSON — one JSON object per line — wrapped in a `PAGE_BEGIN` / `PAGE_END` pair:
 
 ```sh
-scop snapshot --list
+poetry run scop snapshot --list
 ```
 
 ```json
@@ -110,7 +110,7 @@ Plain `cat` of stdout is always readable — the `msg` field is a complete human
 Run the plain localhost GUI:
 
 ```sh
-scop-gui
+poetry run scop-gui
 ```
 
 The app starts a local web server at `http://127.0.0.1:8765/` and opens your browser automatically.

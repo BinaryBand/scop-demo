@@ -7,26 +7,23 @@ description = "File and directory snapshotter"
 scop_version = "0.1.2"
 
 [[app.global_param]]
-name = "--verbose"
+name = "--output"
 kind = "flag"
-short = "-v"
-type = "boolean"
-required = false
+type = "string"
+short = "-o"
+metavar = "FILE"
 
 [[app.global_param]]
 name = "--quiet"
 kind = "flag"
-short = "-q"
 type = "boolean"
-required = false
+short = "-q"
 
 [[app.global_param]]
-name = "--output"
+name = "--verbose"
 kind = "flag"
-short = "-o"
-type = "string"
-metavar = "FILE"
-required = false
+type = "boolean"
+short = "-v"
 
 [[room]]
 id = ""
@@ -72,23 +69,20 @@ kind = "action"
 [[room.command.param]]
 name = "--dry-run"
 kind = "flag"
+type = "boolean"
 short = "-n"
-type = "boolean"
-required = false
-
-[[room.command.param]]
-name = "--recursive"
-kind = "flag"
-short = "-r"
-type = "boolean"
-required = false
 
 [[room.command.param]]
 name = "--force"
 kind = "flag"
-short = "-f"
 type = "boolean"
-required = false
+short = "-f"
+
+[[room.command.param]]
+name = "--recursive"
+kind = "flag"
+type = "boolean"
+short = "-r"
 
 [[room.command]]
 name = "Diff"
@@ -120,9 +114,8 @@ kind = "action"
 [[room.command.param]]
 name = "--all"
 kind = "flag"
-short = "-a"
 type = "boolean"
-required = false
+short = "-a"
 
 [[room.command]]
 name = "Status"
@@ -154,3 +147,9 @@ kind = "flag"
 type = "string"
 metavar = "SNAPSHOT_ID"
 required = true
+
+[[room.command.param]]
+name = "--help"
+kind = "flag"
+type = "boolean"
+short = "-h"
