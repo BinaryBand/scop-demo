@@ -12,7 +12,7 @@ Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-dra
 | --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP.md` §7) | SCOP §7 |
-| CLI Contract (this doc + `SCOP.md`) | SCOP §§6, 8, 9 |
+| CLI Contract (`CLI_CONTRACT.md`) | SCOP §§6, 8, 9 |
 
 ## Dependency Diagram
 
@@ -59,11 +59,12 @@ Dotted arrows (`-.->`) cross an abstraction boundary; solid arrows cross a concr
 3. **services/** run domain logic, calling out through **ports/** interfaces
 4. **adapters/** answer those port calls, using **models/** and **utils/** to do so
 5. **adapters/** return a port interface back to the service
-6. **services/** emit events and resolve the `StreamPort`
-7. **app/** returns the resolved `StreamPort` to **cli.py** to render
+6. **services/** emit events and resolve the `StreamingResult`
+7. **app/** returns the resolved `StreamingResult` to **cli.py** to render
 
 > `cli.py` may only import `AppDispatcher`.
 > `argparse` may only appear in `cli.py`.
+> `asyncio` may only appear in `cli.py` and `adapters/runtime_adapter.py` — the event loop and task scheduling are owned at the entry point and the runtime adapter respectively. `app/` returns a `StreamPort` directly; no tuple, no coroutine leaks past the adapter boundary.
 
 ## Toolchain
 
@@ -177,9 +178,27 @@ Each submodule is restricted to the third-party packages listed. Importing a lis
 
 **Enforcement pattern:** ban the package globally via `TID251`, then carve out the one permitted submodule with `per-file-ignores`:
 
+```toml
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"httpx".msg       = "HTTP belongs in utils/net/ only"
+"pyyaml".msg      = "YAML serialisation belongs in utils/fmt/ only"
+"tomli".msg       = "TOML parsing belongs in utils/fmt/ only"
+"cryptography".msg = "Encryption belongs in utils/crypto/ only"
+"pydantic".msg    = "Pydantic models belong in models/ only"
+
+[tool.ruff.lint.per-file-ignores]
+"*/utils/net/*"    = ["TID251"]
+"*/utils/fmt/*"    = ["TID251"]
+"*/utils/crypto/*" = ["TID251"]
+"*/models/*"       = ["TID251"]
+"tests/*"          = ["S101", "ARG"]
+```
+
 ## AppDispatcher
 
 `AppDispatcher` lives in `app/dispatcher.py`. Concrete apps live one level deeper under `app/registry/`, satisfying the depth import rule — `dispatcher.py` imports downward into `registry/`, never across siblings.
+
+`AppDispatcher` never imports `StreamingResult` directly — it only knows `StreamPort`. The concrete stream (with its injected queue) is created by `RuntimeAdapter` via `RuntimePort.create_stream()`. `asyncio` is therefore confined entirely to `adapters/runtime_adapter.py` and `cli.py`.
 
 ```text
 app/
@@ -217,16 +236,14 @@ classDiagram
 
     class RuntimePort {
         <<abstract>>
-        +new_stream() int
-        +emit(stream_id: int, event: SyslogMessage) void
-        +resolve(stream_id: int, ok: bool, data: SyslogMessage) void
-        +result(stream_id: int) ResolvedResult | None
-        +iter_events(stream_id: int) AsyncIterator~SyslogMessage~
-        +spawn(job) void
+        +create_stream() StreamPort
+        +spawn(coro: Coroutine, stream: StreamPort) void
     }
 
     class RuntimeAdapter {
-        +spawn(job) void
+        -_tasks: set~Task~
+        +create_stream() StreamPort
+        +spawn(coro: Coroutine, stream: StreamPort) void
     }
 
     class SyslogMessage {
@@ -244,16 +261,27 @@ classDiagram
     }
 
     AppDispatcher --> BaseApp : resolves & calls run()
-    AppDispatcher --> RuntimePort : delegates async runtime ops
-    AppDispatcher --> StreamingResult : creates & passes down
+    AppDispatcher --> RuntimePort : create_stream + spawn
     RuntimeAdapter ..|> RuntimePort
+    RuntimeAdapter --> StreamingResult : creates with injected queue
     StreamingResult ..|> StreamPort
-    StreamingResult --> RuntimePort : delegates queue/result ops
     StreamingResult --> SyslogMessage : emits
     StreamingResult --> ResolvedResult : terminates with
     BaseApp <|-- ConcreteAppA
     BaseApp <|-- ConcreteAppB
 ```
+
+**How `dispatch()` works:**
+
+```python
+def dispatch(self, command: str, args: dict) -> StreamPort:
+    app    = self._resolve(command)
+    stream = self._runtime.create_stream()          # RuntimeAdapter injects asyncio.Queue
+    self._runtime.spawn(app.run(args, stream), stream)  # RuntimeAdapter calls create_task
+    return stream                                   # cli.py receives StreamPort only
+```
+
+`RuntimeAdapter` is the only place `asyncio` appears outside `cli.py`. It owns the `_tasks` set and the queue construction — nothing in `app/` imports asyncio.
 
 ## Marker Bases
 
@@ -315,7 +343,7 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
-> Full vocabulary and flag contracts: `SCOP.md` §§7-9.
+> Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_CONTRACT.md`.
 
 ## Utils
 

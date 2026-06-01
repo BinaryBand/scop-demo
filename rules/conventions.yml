@@ -23,7 +23,7 @@ rule:
     - pattern: "from $MOD import $$$"
 constraints:
   MOD:
-    regex: "^(?:asyncio|concurrent|glob|gzip|bz2|lzma|http|urllib|ftplib|imaplib|smtplib|telnetlib|os|pathlib|queue|shutil|socket|ssl|stat|subprocess|tarfile|tempfile|threading|zipfile|io|mmap|multiprocessing)(?:\\..*)?$"
+    regex: "^(?:asyncio|concurrent|glob|gzip|bz2|lzma|http|urllib|ftplib|imaplib|smtplib|telnetlib|importlib|runpy|os|pathlib|queue|shutil|socket|ssl|stat|subprocess|tarfile|tempfile|threading|zipfile|io|mmap|multiprocessing)(?:\\..*)?$"
 files:
   - "scop/app/**/*.py"
   - "scop/services/**/*.py"
