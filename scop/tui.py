@@ -257,6 +257,7 @@ class ScopTuiApp(App[None]):
             label = next(mounted_item.query("Label").results(Label), None)
             if label is not None:
                 label.update(self._pages[key].label)
+        self._sync_nav_highlight()
 
     def _infer_page_from_command(self, command: str, description: str) -> _PageSpec | None:
         try:
@@ -280,7 +281,7 @@ class ScopTuiApp(App[None]):
         if len(subcommands) == 1:
             # Render list first so primary records stay visible near the top.
             query_flags = [["--list", "--all"], ["--status"], ["--help"]]
-            parent_key = "home"
+            parent_key = None
         else:
             query_flags = [["--help"]]
             parent_key = "/".join(subcommands[:-1])
@@ -331,6 +332,7 @@ class ScopTuiApp(App[None]):
             return
         self._current_key = page.key
         self.query_one("#back-btn", Button).display = page.parent_key is not None
+        self._sync_nav_highlight()
 
         commands = self._commands_for_page(page)
         if len(commands) > 1:
@@ -346,6 +348,24 @@ class ScopTuiApp(App[None]):
         self._composite_page_end_remaining = 0
         captured = list(commands[0])
         self.run_worker(lambda: self._run_scop(captured), thread=True)
+
+    def _root_key_for_page(self, key: str) -> str:
+        seen: set[str] = set()
+        current_key = key
+        while current_key not in seen:
+            seen.add(current_key)
+            page = self._page_by_key(current_key)
+            if page is None or page.parent_key is None:
+                return current_key
+            current_key = page.parent_key
+        return key
+
+    def _sync_nav_highlight(self) -> None:
+        nav = self.query_one("#nav-menu", ListView)
+        root_key = self._root_key_for_page(self._current_key)
+        if root_key not in self._page_order:
+            return
+        nav.index = self._page_order.index(root_key)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item_id = event.item.id or ""
@@ -415,13 +435,22 @@ class ScopTuiApp(App[None]):
         self._composite_page_started = self._composite_active
         title = e.get("title") or e.get("room") or "scop"
         icon = e.get("icon", "")
+        current_page = self._page_by_key(self._current_key)
+        if (
+            current_page is not None
+            and current_page.parent_key is not None
+            and current_page.base_args
+        ):
+            # For child pages, show the concrete command target (e.g. Create/Diff)
+            # rather than the parent room title emitted by SCOP.
+            title = current_page.base_args[-1].replace("-", " ").title()
         self.title = f"{icon} {title}".strip()
         self.sub_title = e.get("subtitle", "")
         # If SCOP provided an icon, update the matching nav label (root pages only).
         # Sub-page icons (List, All, Diff) come from _PAGES defaults, not PAGE_BEGIN.
         if icon:
             page = self._page_by_key(self._current_key)
-            if page and page.parent_key is None:  # root pages only — sub-pages use _PAGES defaults
+            if page and page.parent_key is None:  # root pages only
                 bare = " ".join(w for w in page.label.split() if all(ord(c) <= 127 for c in w))
                 for item in self.query(f"#{self._nav_id_for_key(self._current_key)}").results(
                     ListItem
@@ -553,14 +582,47 @@ class ScopTuiApp(App[None]):
                         Button(label, id=self._cta_id_for_key(page.key), variant="primary")
                     )
 
+        render_items = state.items
+        if e["id"] == "help":
+            current_page = self._page_by_key(self._current_key)
+            if current_page is not None and len(current_page.base_args) > 1:
+                command_prefix = " ".join(current_page.base_args)
+                scoped_items: list[tuple[str, Any]] = []
+                for item_id, value in state.items:
+                    if not isinstance(value, dict):
+                        continue
+                    command = value.get("command")
+                    if isinstance(command, str) and command.startswith(command_prefix):
+                        scoped_items.append((item_id, value))
+                if scoped_items:
+                    render_items = scoped_items
+
         main = self.query_one("#main", ScrollableContainer)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
-        for i, (_, value) in enumerate(state.items, 1):
+        for i, (_, value) in enumerate(render_items, 1):
             prefix = f"{i}." if state.ordered else "•"
             if isinstance(value, dict):
                 cmd = value.get("command", "")
                 desc = value.get("description", "")
                 main.mount(Static(f"  {prefix} [cyan]{cmd}[/cyan]  [dim]{desc}[/dim]"))
+
+                args_value = value.get("args", value.get("arguments"))
+                if isinstance(args_value, str) and args_value.strip():
+                    main.mount(Static(f"      [dim]args:[/dim] {args_value.strip()}"))
+                elif isinstance(args_value, list):
+                    args_tokens = [str(token).strip() for token in args_value if str(token).strip()]
+                    if args_tokens:
+                        main.mount(Static(f"      [dim]args:[/dim] {', '.join(args_tokens)}"))
+
+                flags_value = value.get("optional_flags", value.get("options", value.get("flags")))
+                if isinstance(flags_value, str) and flags_value.strip():
+                    main.mount(Static(f"      [dim]optional:[/dim] {flags_value.strip()}"))
+                elif isinstance(flags_value, list):
+                    option_tokens = [
+                        str(token).strip() for token in flags_value if str(token).strip()
+                    ]
+                    if option_tokens:
+                        main.mount(Static(f"      [dim]optional:[/dim] {', '.join(option_tokens)}"))
             else:
                 main.mount(Static(f"  {prefix} {value}"))
 

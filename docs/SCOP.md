@@ -1,6 +1,6 @@
 # Structured CLI Output Protocol (SCOP)
 
-**Version:** 0.1.0-draft  
+**Version:** 0.1.2-draft  
 **Status:** Draft Specification  
 **License:** CC0 1.0 Universal (Public Domain)
 
@@ -254,32 +254,68 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 Query flags produce data output and exit. Each response MUST be wrapped in `PAGE_BEGIN` / `PAGE_END`.
 
 **`--help` / `-h`**
-
-```text
-PAGE_BEGIN (room: current, title: command name)
+```
+PAGE_BEGIN (room: current, title: command name, intent: "query")
 LIST_DECLARE (id: "help", ordered: false)
-LIST_APPEND ×n (value: {command, description[, params]})
+LIST_APPEND ×n (value: help-item object — see schema below)
 LIST_END
 PAGE_END
 ```
 
-Each `LIST_APPEND.value` MAY include a `params` array describing the command's accepted inputs. Producers that supply a SCOP-M manifest SHOULD include `params`. CLI consumers MUST ignore unknown fields; GUI consumers use `params` to render input forms.
+**Help-item schema** — normative definition of `value` for every `LIST_APPEND` where `id = "help"`:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `command` | string | ✓ | CLI token for this entry (e.g. `"snap"`) |
+| `description` | string | ✓ | Human-readable description |
+| `kind` | string | | `"action"` (executable leaf) or `"group"` (navigates to subroom). Default: `"action"` |
+| `params` | array | Conditional | MUST be present and non-empty for `kind = "action"` entries that accept one or more inputs. MAY be omitted for `kind = "group"` entries or parameter-free actions. |
+
+**Param object** (each element of `params`):
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | ✓ | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`) |
+| `kind` | string | ✓ | `"flag"` or `"positional"` |
+| `type` | string | | One of the types defined in SCOP-M §5. Default: `"string"` |
+| `short` | string | | Short alias (e.g. `"-p"`). Valid for `kind = "flag"` only |
+| `metavar` | string | | Placeholder in usage line (e.g. `"PATH"`, `"SNAPSHOT"`) |
+| `required` | boolean | | Default: `true` for positionals, `false` for flags |
+| `repeatable` | boolean | | Whether the param may appear multiple times. Default: `false` |
+| `description` | string | | Human-readable description |
+
+**Ordering within `params`:** positionals MUST precede flags. Among flags, required flags MUST precede optional. Within each group, alphabetical by `name`.
+
+**Compatibility:** consumers MUST ignore unknown fields in help-item and param objects. Producers MAY extend with additional fields.
+
+**Params enforcement:** for `kind = "action"` entries that accept inputs, `params` is not optional — omitting it means consumers cannot build forms, validate invocations, or auto-generate UI without falling back to custom code, which defeats the zero-app-knowledge guarantee.
 
 ```json
-{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help",
+{"pri": 6, "msgid": "LIST_APPEND", "room": "snap", "id": "help",
+ "item_id": "restore",
+ "value": {
+   "command": "restore",
+   "description": "Navigate to restore options",
+   "kind": "group"
+ },
+ "msg": "  restore  Navigate to restore options"}
+
+{"pri": 6, "msgid": "LIST_APPEND", "room": "snap", "id": "help",
  "item_id": "snap",
  "value": {
    "command": "snap",
    "description": "Take a new snapshot",
+   "kind": "action",
    "params": [
-     {"name": "--path",      "type": "path",     "pattern": "^/[^\\0]*$", "required": false, "default": "."},
-     {"name": "--date",      "type": "datetime",  "required": false},
-     {"name": "--format",    "type": "choice",    "choices": ["json","tar","zip"], "required": false, "default": "json"},
-     {"name": "--dry-run",   "type": "boolean",   "required": false},
-     {"name": "--recursive", "type": "boolean",   "required": false}
+     {"name": "target",     "kind": "positional", "metavar": "DIR",      "required": true,  "description": "Directory to snapshot"},
+     {"name": "--date",     "kind": "flag", "short": "-d", "metavar": "DATETIME", "required": false, "description": "Snapshot timestamp"},
+     {"name": "--dry-run",  "kind": "flag", "short": "-n", "type": "boolean",     "required": false, "description": "Preview without writing"},
+     {"name": "--format",   "kind": "flag",               "metavar": "FORMAT",   "required": false, "description": "Output format"},
+     {"name": "--path",     "kind": "flag", "short": "-p", "metavar": "PATH",     "required": false, "description": "Override snapshot path"},
+     {"name": "--recursive","kind": "flag", "short": "-r", "type": "boolean",     "required": false, "description": "Include subdirectories"}
    ]
  },
- "msg": "  snap    Take a new snapshot"}
+ "msg": "  snap     Take a new snapshot"}
 ```
 
 **`--version`**
@@ -361,7 +397,7 @@ Each call is independent. A page MAY be built from a subset.
 | Empty state | `SCALAR_SET` with `id="page.empty"` |
 | Badge | `SCALAR_SET` with `display_hint: "badge"` |
 
-**Full page manifest example** (`ourapp snapshot`):
+**Full page manifest example** (`ourapp snapshot`) — help entries shown without `params` for brevity; conformance requires `params` for all `kind = "action"` entries that accept inputs (§8.1):
 
 ```json
 {"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "intent": "query", "msg": "=== Snapshots ==="}
@@ -378,7 +414,6 @@ Each call is independent. A page MAY be built from a subset.
 ```
 
 **CLI output** (msg fields only):
-
 ```text
 === Snapshots ===
 Tracked files: 1042
@@ -456,7 +491,7 @@ Consumers MUST maintain independent slot state per `id` for `PROCESS_*` events. 
 
 ### Informative
 
-- **SCOP-M v0.1.1-draft** — SCOP Manifest Format (companion specification)
+- **SCOP-M v0.1.2-draft** — SCOP Manifest Format (companion specification)
 - **LSP `$/progress`** — Language Server Protocol §3.16.1. Microsoft (2021).
 - **Adaptive Cards** — adaptivecards.io
 - **CloudEvents** — CNCF CloudEvents v1.0.2. cloudevents.io

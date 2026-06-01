@@ -16,6 +16,83 @@ _COMMANDS = [
     ("snapshot --status", "Show snapshot stats"),
 ]
 
+_ROOT_HELP_ITEMS = [
+    {
+        "item_id": "snapshot create",
+        "value": {
+            "command": "snapshot create",
+            "description": "Take a new snapshot",
+            "args": "none",
+            "optional_flags": [
+                "--dry-run, -n",
+                "--recursive, -r",
+                "--force, -f",
+                "--verbose, -v",
+                "--quiet, -q",
+                "--output FILE, -o",
+            ],
+        },
+    },
+    {
+        "item_id": "snapshot diff",
+        "value": {
+            "command": "snapshot diff",
+            "description": "Compare two snapshots",
+            "args": ["--from SNAPSHOT_ID", "--to SNAPSHOT_ID"],
+            "optional_flags": [
+                "--verbose, -v",
+                "--quiet, -q",
+                "--output FILE, -o",
+            ],
+        },
+    },
+    {
+        "item_id": "snapshot --list",
+        "value": {"command": "snapshot --list", "description": "List all snapshots"},
+    },
+    {
+        "item_id": "snapshot --status",
+        "value": {"command": "snapshot --status", "description": "Show snapshot stats"},
+    },
+]
+
+_CREATE_HELP_ITEMS = [
+    {
+        "item_id": "snapshot create",
+        "value": {
+            "command": "snapshot create",
+            "description": "Take a new snapshot",
+            "args": "none",
+            "optional_flags": [
+                "--dry-run, -n",
+                "--recursive, -r",
+                "--force, -f",
+                "--verbose, -v",
+                "--quiet, -q",
+                "--output FILE, -o",
+                "--help, -h",
+            ],
+        },
+    }
+]
+
+_DIFF_HELP_ITEMS = [
+    {
+        "item_id": "snapshot diff",
+        "value": {
+            "command": "snapshot diff",
+            "description": "Compare two snapshots",
+            "args": ["--from SNAPSHOT_ID", "--to SNAPSHOT_ID"],
+            "optional_flags": [
+                "--verbose, -v",
+                "--quiet, -q",
+                "--output FILE, -o",
+                "--help, -h",
+            ],
+        },
+    }
+]
+
 
 class SnapApp(BaseApp):
     async def run(self, args: dict, stream: StreamingResult) -> None:
@@ -39,7 +116,7 @@ class SnapApp(BaseApp):
         port = SnapshotAdapter()
 
         if args.get("help"):
-            self._emit_help(stream, room)
+            self._emit_help(stream, room, action=action)
         elif action == "create":
             service: (
                 CreateSnapshotService
@@ -74,27 +151,40 @@ class SnapApp(BaseApp):
         stream.emit(end)
         stream.resolve(ok=True, data=end)
 
-    def _emit_help(self, stream: StreamingResult, room: str) -> None:
+    def _emit_help(self, stream: StreamingResult, room: str, *, action: str | None) -> None:
+        if action == "create":
+            label = "snapshot create"
+            items = _CREATE_HELP_ITEMS
+        elif action == "diff":
+            label = "snapshot diff"
+            items = _DIFF_HELP_ITEMS
+        else:
+            label = "snapshot"
+            items = _ROOT_HELP_ITEMS
+
         stream.emit(
             SyslogMessage(
                 pri=6,
                 msgid=MSGID.LIST_DECLARE,
                 room=room,
                 msg="Commands",
-                data={"id": "help", "label": "snapshot", "ordered": False},
+                data={"id": "help", "label": label, "ordered": False},
             )
         )
-        for cmd, desc in _COMMANDS:
+        for item in items:
+            value = item["value"]
+            command = value.get("command", "")
+            description = value.get("description", "")
             stream.emit(
                 SyslogMessage(
                     pri=6,
                     msgid=MSGID.LIST_APPEND,
                     room=room,
-                    msg=f"  {cmd:<24}{desc}",
+                    msg=f"  {command:<24}{description}",
                     data={
                         "id": "help",
-                        "item_id": cmd,
-                        "value": {"command": cmd, "description": desc},
+                        "item_id": item["item_id"],
+                        "value": value,
                     },
                 )
             )

@@ -1,9 +1,9 @@
 # SCOP-M: Structured CLI Output Protocol — Manifest Format
 
-**Version:** 0.1.1-draft  
+**Version:** 0.1.2-draft  
 **Status:** Draft Specification  
 **License:** CC0 1.0 Universal (Public Domain)  
-**Companion to:** SCOP v0.1.1-draft
+**Companion to:** SCOP v0.1.2-draft
 
 ---
 
@@ -272,8 +272,10 @@ The `kind` field MUST be provided. Inferring parameter kind from the presence of
 | `kind` | string | ✓ | `"flag"` or `"positional"`. Determines CLI assembly syntax |
 | `type` | string | ✓ | One of the types defined in §5 |
 | `short` | string | | Single-character short flag (e.g. `"-p"`). Valid for `kind = "flag"` only |
-| `description` | string | | Human-readable description |
+| `metavar` | string | | Placeholder shown in usage line (e.g. `"PATH"`, `"SNAPSHOT"`) |
+| `description` | string | | Human-readable description of this parameter |
 | `required` | boolean | | Default: `false` for `"flag"`, `true` for `"positional"` |
+| `repeatable` | boolean | | Whether the param may appear multiple times. Default: `false` |
 | `default` | any | | Default value; type must match `type` |
 | `pattern` | string | | Regex validation. Valid for `string` and `path` types |
 | `choices` | string[] | | Valid values. Required when `type = "choice"` |
@@ -293,28 +295,31 @@ id = "snap"
   description = "Take a new snapshot"
 
     [[room.command.param]]
-    name     = "--path"
-    kind     = "flag"
-    short    = "-p"
-    type     = "path"
-    pattern  = "^/[^\\0]*$"
-    required = false
-    default  = "."
+    name        = "target"
+    kind        = "positional"
+    type        = "path"
+    metavar     = "DIR"
+    required    = true
+    description = "Directory to snapshot"
 
     [[room.command.param]]
-    name     = "--date"
-    kind     = "flag"
-    short    = "-d"
-    type     = "datetime"
-    required = false
+    name        = "--date"
+    kind        = "flag"
+    short       = "-d"
+    type        = "datetime"
+    metavar     = "DATETIME"
+    required    = false
+    description = "Snapshot timestamp"
 
     [[room.command.param]]
-    name     = "--format"
-    kind     = "flag"
-    type     = "choice"
-    choices  = ["json", "tar", "zip"]
-    required = false
-    default  = "json"
+    name        = "--format"
+    kind        = "flag"
+    type        = "choice"
+    metavar     = "FORMAT"
+    choices     = ["json", "tar", "zip"]
+    required    = false
+    default     = "json"
+    description = "Output format"
 ```
 
 ---
@@ -347,8 +352,8 @@ A SCOP-M manifest MUST be semantically equivalent to the runtime discovery outpu
 | `room.title`, `room.subtitle`, `room.icon` | `PAGE_BEGIN` fields for that room |
 | `room.stat.*` | `SCALAR_SET` events emitted by `ourapp [room] --status` |
 | `room.list.schema` | `TABLE_DECLARE.schema` emitted by `ourapp [room] --list` |
-| `room.command.exec`, `.description` | `LIST_APPEND.value` fields in `ourapp [room] --help` |
-| `room.command.param.*` | `LIST_APPEND.value.params` entries (SCOP §8.1 extension) |
+| `room.command.exec`, `.description`, `.kind` | `LIST_APPEND.value.command`, `.description`, `.kind` in `ourapp [room] --help` |
+| `room.command.param.*` | `LIST_APPEND.value.params` entries (SCOP §8.1 help-item schema) |
 | `app.global_param.*` | Inherited `params` entries on every command |
 
 A conformance test tool MAY verify equivalence by running the CLI and diffing its `--help` / `--status` / `--list` output against the manifest.
@@ -539,13 +544,13 @@ icon     = ":floppy_disk:"
 6. Use room `id` values consistent with SCOP §6 room derivation
 7. Provide `kind` on every `[[room.command.param]]`
 8. Provide `exec` when `name` differs from the CLI token
+9. Include `params` on every `[[room.command]]` with `kind = "action"` that accepts one or more inputs
 
 **A conforming manifest SHOULD:**
 
-9. Include a `[[room]]` entry for every room the application emits events in
-10. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
-11. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
-12. Include `params` on every `[[room.command]]` that accepts arguments
+10. Include a `[[room]]` entry for every room the application emits events in
+11. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
+12. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
 13. Declare universal flags in `[[app.global_param]]` rather than repeating them per command
 14. Be kept semantically equivalent to runtime `--help` / `--status` / `--list` output (§6)
 
@@ -555,7 +560,7 @@ icon     = ":floppy_disk:"
 
 ### Normative
 
-- **SCOP v0.1.1-draft** — Structured CLI Output Protocol
+- **SCOP v0.1.2-draft** — Structured CLI Output Protocol
 - **TOML v1.0** — toml.io
 - **RFC 2119** — Key words for use in RFCs. Bradner, S. (1997).
 - **GitHub gemoji** — github.com/github/gemoji
