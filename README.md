@@ -70,12 +70,36 @@ Plain `cat` of stdout is always readable — the `msg` field is a complete human
 
 ---
 
+## GUI (POC)
+
+Run the plain localhost GUI:
+
+```sh
+scop-gui
+```
+
+The app starts a local web server at `http://127.0.0.1:8765/` and opens your browser automatically.
+
+- The page is intentionally minimal and protocol-focused.
+- Actions are auto-generated from SCOP `--help` events (`LIST_APPEND.value.command`).
+- Clicking an action runs the corresponding SCOP command and renders the resulting page info.
+
+Optional environment variables:
+
+```sh
+SCOP_GUI_HOST=127.0.0.1   # default host
+SCOP_GUI_PORT=8765        # default port
+SCOP_GUI_OPEN=0           # disable auto-open browser
+```
+
+---
+
 ## Mode flags
 
 These work on any command:
 
 | Flag | Short | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `--quiet` | `-q` | Suppress `PROCESS_LOG` and informational events |
 | `--verbose` | `-v` | Include `DEBUG`-level log events |
 | `--all` | `-a` | Expand `--list` / `--status` scope |

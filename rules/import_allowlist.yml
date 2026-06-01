@@ -23,6 +23,7 @@ files:
   - "scop/**/*.py"
   - "tests/**/*.py"
 ignores:
+  - "scop/gui.py"
   - "scop/cli.py"
   - "scop/tui.py"
   - "scop/adapters/**/*.py"

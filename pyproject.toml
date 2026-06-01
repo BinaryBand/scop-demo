@@ -6,11 +6,12 @@ authors = [
     { name = "BinaryBand", email = "BinaryBand@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = ["rich (>=15.0.0,<16.0.0)", "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\""]
+dependencies = ["rich (>=15.0.0,<16.0.0)", "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\"", "flask (>=3.0,<4.0)"]
 
 [project.scripts]
 scop = "scop.cli:main"
 scop-tui = "scop.tui:main"
+scop-gui = "scop.gui:main"
 
 
 [build-system]
