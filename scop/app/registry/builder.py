@@ -23,6 +23,6 @@ def build_default_registry() -> dict[str, BaseApp]:
 def build_default_runtime() -> RuntimePort:
     """Create the default runtime implementation for AppDispatcher."""
     from scop.adapters.runtime_adapter import RuntimeAdapter
-    from scop.app.stream import StreamingResult
+    from scop.ports.streaming_result import StreamingResult
 
     return RuntimeAdapter(StreamingResult)

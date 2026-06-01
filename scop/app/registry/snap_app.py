@@ -3,7 +3,7 @@ from __future__ import annotations
 from scop.adapters.snapshot_adapter import SnapshotAdapter
 from scop.app.bases import BaseApp
 from scop.models.protocol import MSGID, SyslogMessage
-from scop.ports.stream_port import StreamPort
+from scop.ports.streaming_result import StreamingResult
 from scop.services.create_snapshot_service import CreateSnapshotService
 from scop.services.diff_snapshots_service import DiffSnapshotsService
 from scop.services.list_snapshots_service import ListSnapshotsService
@@ -18,7 +18,7 @@ _COMMANDS = [
 
 
 class SnapApp(BaseApp):
-    async def run(self, args: dict, stream: StreamPort) -> None:
+    async def run(self, args: dict, stream: StreamingResult) -> None:
         action = args.get("action")
         base_room_raw = args.get("_room")
         base_room = base_room_raw if isinstance(base_room_raw, str) else "snapshot"
@@ -70,7 +70,7 @@ class SnapApp(BaseApp):
         stream.emit(end)
         stream.resolve(ok=True, data=end)
 
-    def _emit_help(self, stream: StreamPort, room: str) -> None:
+    def _emit_help(self, stream: StreamingResult, room: str) -> None:
         stream.emit(
             SyslogMessage(
                 pri=6,

@@ -227,6 +227,9 @@ rule:
           - pattern: "class $NAME(Port): $$$"
           - pattern: "class $NAME(Port, $$$): $$$"
           - pattern: "class $NAME($$$, Port): $$$"
+          - pattern: "class $NAME(Protocol): $$$"
+          - pattern: "class $NAME(Protocol, $$$): $$$"
+          - pattern: "class $NAME($$$, Protocol): $$$"
 files:
   - "scop/ports/**/*.py"
 ---

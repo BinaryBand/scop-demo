@@ -3,7 +3,7 @@ from __future__ import annotations
 from scop.bases import Service
 from scop.models.protocol import MSGID, SyslogMessage
 from scop.ports.snapshot_port import SnapshotPort
-from scop.ports.stream_port import StreamPort
+from scop.ports.streaming_result import StreamingResult
 
 
 class SnapshotStatusService(Service):
@@ -11,7 +11,7 @@ class SnapshotStatusService(Service):
         self._port = port
         self._room = room
 
-    async def run(self, stream: StreamPort) -> None:
+    async def run(self, stream: StreamingResult) -> None:
         stats = self._port.get_stats()
         r = self._room
         stream.emit(

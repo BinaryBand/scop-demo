@@ -8,19 +8,20 @@ from scop.bases import Adapter
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.runtime_port import RuntimePort
 from scop.ports.stream_port import StreamPort
+from scop.ports.streaming_result import StreamingResult
 
 
 class RuntimeAdapter(Adapter, RuntimePort):
     port: ClassVar[type[RuntimePort]] = RuntimePort
 
-    def __init__(self, stream_factory: Callable[[RuntimeAdapter], StreamPort]) -> None:
+    def __init__(self, stream_factory: Callable[[RuntimeAdapter], StreamingResult]) -> None:
         self._stream_factory = stream_factory
         self._tasks: set[asyncio.Task[object]] = set()
         self._queues: dict[int, asyncio.Queue[SyslogMessage | None]] = {}
         self._results: dict[int, ResolvedResult | None] = {}
         self._next_stream_id = 0
 
-    def create_stream(self) -> StreamPort:
+    def create_stream(self) -> StreamingResult:
         return self._stream_factory(self)
 
     def new_stream(self) -> int:

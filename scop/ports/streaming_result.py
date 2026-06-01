@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Protocol
 
+from scop.bases import Port
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.stream_port import StreamPort
 
@@ -19,7 +20,7 @@ class _RuntimeStreamOps(Protocol):
     def iter_events(self, stream_id: int) -> AsyncIterator[SyslogMessage]: ...
 
 
-class StreamingResult(StreamPort):
+class StreamingResult(StreamPort, Port):
     """Async event channel created by AppDispatcher and passed down to services."""
 
     def __init__(self, runtime: _RuntimeStreamOps) -> None:
