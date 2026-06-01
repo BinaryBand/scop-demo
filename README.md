@@ -7,7 +7,7 @@
 ## Installation
 
 ```sh
-pip install -e ".[dev]"
+poetry install --no-root
 ```
 
 ---

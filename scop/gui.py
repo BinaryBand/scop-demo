@@ -11,6 +11,7 @@ from urllib.parse import quote_plus
 
 from flask import Flask, Response, request
 
+from scop.models.protocol import MSGID
 from scop.utils.proc import run_resolved
 
 
@@ -128,7 +129,7 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
     for event in events:
         msgid = event.get("msgid")
 
-        if msgid == "PAGE_BEGIN":
+        if msgid == MSGID.PAGE_BEGIN:
             event_room = event.get("room")
             room = event_room if isinstance(event_room, str) else None
             data_title = event.get("title")
@@ -138,13 +139,13 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
             if isinstance(data_subtitle, str):
                 subtitle = data_subtitle
 
-        elif msgid == "SCALAR_SET":
+        elif msgid == MSGID.SCALAR_SET:
             label = event.get("label")
             value = event.get("value")
             if isinstance(label, str):
                 scalars.append((label, value))
 
-        elif msgid == "TABLE_DECLARE":
+        elif msgid == MSGID.TABLE_DECLARE:
             table_id = event.get("id")
             label = event.get("label")
             schema = event.get("schema")
@@ -152,7 +153,7 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
                 columns = [c for c in schema if isinstance(c, str)]
                 tables_by_id[table_id] = (label, columns, [])
 
-        elif msgid == "TABLE_ROW":
+        elif msgid == MSGID.TABLE_ROW:
             table_id = event.get("id")
             values = event.get("values")
             if isinstance(table_id, str) and isinstance(values, dict) and table_id in tables_by_id:
@@ -161,7 +162,7 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
                 rows.append(row)
                 tables_by_id[table_id] = (label, cols, rows)
 
-        elif msgid == "TABLE_UPDATE":
+        elif msgid == MSGID.TABLE_UPDATE:
             table_id = event.get("id")
             row_id = event.get("row_id")
             values = event.get("values")
@@ -185,14 +186,14 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
                     rows.append(row)
                 tables_by_id[table_id] = (label, cols, rows)
 
-        elif msgid == "LIST_DECLARE":
+        elif msgid == MSGID.LIST_DECLARE:
             list_id = event.get("id")
             label = event.get("label")
             ordered = event.get("ordered")
             if isinstance(list_id, str) and isinstance(label, str):
                 lists_by_id[list_id] = (label, bool(ordered), [])
 
-        elif msgid == "LIST_APPEND":
+        elif msgid == MSGID.LIST_APPEND:
             list_id = event.get("id")
             value = event.get("value")
             if isinstance(list_id, str) and list_id in lists_by_id:
@@ -201,7 +202,7 @@ def _parse_page(events: list[dict[str, object]], actions: list[ActionLink]) -> P
                     items.append(value)
                     lists_by_id[list_id] = (label, ordered, items)
 
-        elif msgid == "LIST_UPDATE":
+        elif msgid == MSGID.LIST_UPDATE:
             list_id = event.get("id")
             item_id = event.get("item_id")
             value = event.get("value")
