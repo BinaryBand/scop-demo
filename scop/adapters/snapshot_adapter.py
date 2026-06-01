@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -128,14 +128,46 @@ class SnapshotAdapter(Adapter, SnapshotPort):
             )
         return records
 
+    def count_snapshot_files(self, *, path: str, recursive: bool) -> int:
+        root = Path(path).resolve()
+        pattern = "**/*" if recursive else "*"
+        return sum(
+            1
+            for p in root.glob(pattern)
+            if p.is_file() and not any(part.startswith(".") for part in p.relative_to(root).parts)
+        )
+
     def create_snapshot(
-        self, *, path: str, dry_run: bool = False, recursive: bool = False, force: bool = False
+        self,
+        *,
+        path: str,
+        dry_run: bool = False,
+        recursive: bool = False,
+        force: bool = False,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> SnapshotRecord:
         root = Path(path).resolve()
 
-        # Single pass: collect manifest data and remember abs paths for object writes.
-        scanned = list(_scan_files(root, recursive=recursive))
-        files = {rel: {"hash": digest, "size": size} for rel, _, digest, size in scanned}
+        # Hash files one by one so on_progress fires per file.
+        entries: list[tuple[str, Path]] = []
+        pattern = "**/*" if recursive else "*"
+        for p in sorted(root.glob(pattern)):
+            if not p.is_file():
+                continue
+            if any(part.startswith(".") for part in p.relative_to(root).parts):
+                continue
+            entries.append((str(p.relative_to(root)), p))
+
+        file_total = len(entries)
+        scanned: list[tuple[str, Path, str, int]] = []
+        files: dict[str, dict] = {}
+        for i, (rel, p) in enumerate(entries):
+            digest = _hash_file(p)
+            size = p.stat().st_size
+            files[rel] = {"hash": digest, "size": size}
+            scanned.append((rel, p, digest, size))
+            if on_progress:
+                on_progress(i + 1, file_total)
 
         # Guard before writing anything — manifest is the authoritative record.
         if not force and _STORE.exists():

@@ -8,13 +8,17 @@ import os
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import IO, Protocol
+from typing import IO, Any, Protocol
+
+from tqdm import tqdm as _tqdm
 
 from scop.app.dispatcher import AppDispatcher
 
 
 class _EventLike(Protocol):
     pri: int
+    msg: str
+    data: dict[str, Any]
 
     def to_ndjson(self) -> str: ...
 
@@ -102,12 +106,37 @@ def _is_tty(f: IO[str]) -> bool:
 
 
 async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[str]) -> bool:
-    """Consume a stream: human-readable msg lines on a TTY, NDJSON otherwise."""
+    """Consume a stream: tqdm progress + human-readable msg on a TTY, NDJSON otherwise."""
     tty = _is_tty(out)
+    bars: dict[str, _tqdm] = {}
+
     async for event in stream:
         pri = event.pri
         raw_msgid = getattr(event, "msgid", "")
         msgid_name = getattr(raw_msgid, "name", str(raw_msgid))
+        data: dict[str, Any] = getattr(event, "data", {}) or {}
+        proc_id: str = str(data.get("id", ""))
+
+        if tty:
+            if msgid_name == "PROCESS_BEGIN":
+                raw_total = data.get("total")
+                bars[proc_id] = _tqdm(
+                    total=int(raw_total) if raw_total is not None else None,
+                    desc=str(data.get("label", proc_id)),
+                    unit="file",
+                    file=out,
+                    leave=True,
+                    dynamic_ncols=True,
+                    mininterval=0,
+                )
+                continue
+            if msgid_name == "PROCESS_UPDATE" and proc_id in bars:
+                bars[proc_id].n = int(data.get("current", 0))
+                bars[proc_id].refresh()
+                continue
+            if msgid_name == "PROCESS_END" and proc_id in bars:
+                bars.pop(proc_id).close()
+                # fall through to print the completion message
 
         if pri == 7 and not verbose:
             continue
@@ -115,11 +144,14 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
             continue
 
         if tty:
-            msg = getattr(event, "msg", "").strip()
+            msg = event.msg.strip()
             if msg:
-                out.write(f"{msg}\n")
+                _tqdm.write(msg, file=out) if bars else out.write(f"{msg}\n")
         else:
             out.write(f"{event.to_ndjson()}\n")
+
+    for bar in bars.values():
+        bar.close()
 
     result = stream.result
     if result is None:

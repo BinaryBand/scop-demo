@@ -11,6 +11,7 @@ dependencies = [
     "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\"",
     "flask (>=3.0,<4.0)",
     "pydantic (>=2.8,<3.0)",
+    "tqdm (>=4.0)",
 ]
 
 [project.scripts]
@@ -76,6 +77,7 @@ select = [
 "pydantic".msg = "Pydantic models belong in models/ only"
 "rich".msg = "TUI rendering belongs in tui.py only"
 "textual".msg = "TUI rendering belongs in tui.py only"
+"tqdm".msg = "CLI progress rendering belongs in cli.py only"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -95,6 +97,7 @@ convention = "google"
 "scop/utils/crypto/**/*.py" = ["TID251"]
 "scop/models/**/*.py" = ["TID251"]
 "scop/tui.py" = ["TID251", "S404", "S603", "S602"]
+"scop/cli.py" = ["TID251"]
 "scop/bases.py" = [
     "B024",
     "ANN001",

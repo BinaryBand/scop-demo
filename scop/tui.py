@@ -870,7 +870,9 @@ class ScopTuiApp(App[None]):
             label=label, total=float(total) if total is not None else None
         )
         self._log(f"[cyan]▶[/cyan] {label}{_flag_tags(e)}")
-        self.query_one("#activity", ScrollableContainer).mount(
+        main = self.query_one("#main", ScrollableContainer)
+        main.mount(Static(f"[cyan]▶[/cyan] [bold]{label}[/bold]{_flag_tags(e)}", classes="stat"))
+        main.mount(
             ProgressBar(
                 total=float(total) if total is not None else None,
                 id=f"proc-{e['id']}",

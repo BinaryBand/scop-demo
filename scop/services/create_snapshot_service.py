@@ -28,7 +28,9 @@ class CreateSnapshotService(Service):
         dr = self._dry_run
         suffix = " (dry run)" if dr else ""
 
-        begin: dict = {"id": "snap", "label": f"Snapshotting{suffix}"}
+        total = self._port.count_snapshot_files(path=self._path, recursive=self._recursive)
+
+        begin: dict = {"id": "snap", "label": f"Snapshotting{suffix}", "total": total}
         if dr:
             begin["dry_run"] = True
         if self._recursive:
@@ -40,14 +42,29 @@ class CreateSnapshotService(Service):
                 pri=6,
                 msgid=MSGID.PROCESS_BEGIN,
                 room=r,
-                msg=f"Starting snapshot{suffix}",
+                msg=f"Starting snapshot{suffix} ({total} files)",
                 data=begin,
             )
         )
 
+        def _on_progress(current: int, file_total: int) -> None:
+            stream.emit(
+                SyslogMessage(
+                    pri=7,
+                    msgid=MSGID.PROCESS_UPDATE,
+                    room=r,
+                    msg=f"hashing {current}/{file_total}",
+                    data={"id": "snap", "current": current, "total": file_total},
+                )
+            )
+
         try:
             snap = self._port.create_snapshot(
-                path=self._path, dry_run=dr, recursive=self._recursive, force=self._force
+                path=self._path,
+                dry_run=dr,
+                recursive=self._recursive,
+                force=self._force,
+                on_progress=_on_progress,
             )
         except RuntimeError as exc:
             stream.emit(
