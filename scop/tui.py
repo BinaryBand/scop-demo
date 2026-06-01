@@ -119,7 +119,7 @@ class ScopTuiApp(App[None]):
     #cta-row Button { margin-right: 1; min-width: 12; }
     #action-form { height: auto; margin-bottom: 1; }
     #action-form Input { margin: 0 0 1 0; }
-    #action-form Select { margin: 0 0 1 0; }
+    #action-form Select { margin: 0 0 1 0; height: 3; }
     #action-form Button { width: auto; }
     #activity { height: 8; border-top: tall $primary; display: none; }
     .stat { margin-bottom: 1; }
@@ -467,7 +467,8 @@ class ScopTuiApp(App[None]):
         main: ScrollableContainer,
         current_page: _PageSpec,
         render_items: list[tuple[str, Any]],
-    ) -> None:
+    ) -> bool:
+        """Mount input widgets for required params. Returns True if a form was built."""
         command_key = " ".join(current_page.base_args)
         selected_value: dict[str, Any] | None = None
 
@@ -482,14 +483,14 @@ class ScopTuiApp(App[None]):
         self._form_inputs_by_page[current_page.key] = []
         self._form_auto_flags_by_page[current_page.key] = []
         if selected_value is None:
-            return
+            return False
 
         if selected_value.get("kind", "action") != "action":
-            return
+            return False
 
         raw_params = selected_value.get("params")
         if not isinstance(raw_params, list):
-            return
+            return False
 
         input_rows: list[tuple[str, str, str, str, str | None, str | None]] = []
         mounted_any = False
@@ -538,7 +539,7 @@ class ScopTuiApp(App[None]):
             mounted_any = True
 
         if not mounted_any:
-            return
+            return False
 
         form_box = Vertical(id="action-form")
         main.mount(form_box)
@@ -560,9 +561,7 @@ class ScopTuiApp(App[None]):
             else:
                 form_box.mount(Input(placeholder=placeholder, id=input_id))
 
-        form_box.mount(
-            Button("Submit", id=self._form_submit_id_for_key(current_page.key), variant="success")
-        )
+        return True
 
     def _fetch_select_options(self, select_id: str, args: list[str]) -> None:
         """Worker: run a scop command and collect TABLE_ROW name values for a Select."""
@@ -808,7 +807,15 @@ class ScopTuiApp(App[None]):
         if e["id"] == "help":
             current_page = self._page_by_key(self._current_key)
             if current_page is not None:
-                self._mount_action_form(main, current_page, render_items)
+                form_built = self._mount_action_form(main, current_page, render_items)
+                if form_built:
+                    main.mount(
+                        Button(
+                            "Submit",
+                            id=self._form_submit_id_for_key(current_page.key),
+                            variant="success",
+                        )
+                    )
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(render_items, 1):
             prefix = f"{i}." if state.ordered else "•"

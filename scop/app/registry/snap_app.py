@@ -91,12 +91,14 @@ _ROOT_HELP_ITEMS = [
                     "kind": "flag",
                     "metavar": "SNAPSHOT_ID",
                     "required": True,
+                    "select_from": "snapshot --list --all",
                 },
                 {
                     "name": "--to",
                     "kind": "flag",
                     "metavar": "SNAPSHOT_ID",
                     "required": True,
+                    "select_from": "snapshot --list --all",
                 },
                 {
                     "name": "--output",
@@ -247,12 +249,14 @@ _DIFF_HELP_ITEMS = [
                     "kind": "flag",
                     "metavar": "SNAPSHOT_ID",
                     "required": True,
+                    "select_from": "snapshot --list --all",
                 },
                 {
                     "name": "--to",
                     "kind": "flag",
                     "metavar": "SNAPSHOT_ID",
                     "required": True,
+                    "select_from": "snapshot --list --all",
                 },
                 {
                     "name": "--help",
