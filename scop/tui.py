@@ -71,13 +71,15 @@ class ScopTuiApp(App[None]):
 
     TITLE = "scop-tui"
 
-    # Static nav: (key, label, scop-args)
-    _PAGES: ClassVar[list[tuple[str, str, list[str]]]] = [
-        ("home", "Home", []),
-        ("snapshot", "Snapshots", ["snapshot"]),
-        ("list", "List snapshots", ["snapshot", "--list"]),
-        ("list-all", "All snapshots", ["snapshot", "--list", "--all"]),
-        ("diff", "Diff", ["snapshot", "diff"]),
+    # Static nav: (key, label, scop-args, parent-key|None)
+    # parent=None  → root page, no back button when active
+    # parent="xyz" → sub-page, back button navigates to parent
+    _PAGES: ClassVar[list[tuple[str, str, list[str], str | None]]] = [
+        ("home", "Home", [], None),
+        ("snapshot", "Snapshots", ["snapshot"], None),
+        ("list", "  List", ["snapshot", "--list"], "snapshot"),
+        ("list-all", "  All", ["snapshot", "--list", "--all"], "snapshot"),
+        ("diff", "  Diff", ["snapshot", "diff"], "snapshot"),
     ]
 
     CSS = """
@@ -110,6 +112,7 @@ class ScopTuiApp(App[None]):
         super().__init__()
         self._src = src
         self._exit_on_eof = exit_on_eof
+        self._current_key: str = "home"
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
@@ -120,7 +123,10 @@ class ScopTuiApp(App[None]):
             with ScrollableContainer(id="nav"):
                 yield Static("Pages", id="nav-heading")
                 yield ListView(
-                    *[ListItem(Label(label), id=f"page-{key}") for key, label, _ in self._PAGES],
+                    *[
+                        ListItem(Label(label), id=f"page-{key}")
+                        for key, label, _, _p in self._PAGES
+                    ],
                     id="nav-menu",
                 )
             with Vertical(id="right"):
@@ -135,7 +141,7 @@ class ScopTuiApp(App[None]):
         if self._src is not None:
             self.run_worker(self._read_stream, thread=True)
         else:
-            self._navigate([])
+            self._navigate("home")
 
     # ── Stream workers ────────────────────────────────────────────────────────
 
@@ -171,22 +177,27 @@ class ScopTuiApp(App[None]):
 
     # ── Navigation ────────────────────────────────────────────────────────────
 
-    def _navigate(self, args: list[str]) -> None:
+    def _navigate(self, key: str) -> None:
+        page = next((p for p in self._PAGES if p[0] == key), None)
+        if not page:
+            return
+        _, _, args, parent_key = page
+        self._current_key = key
+        self.query_one("#back-btn", Button).display = parent_key is not None
         captured = list(args)
-        self.query_one("#back-btn", Button).display = bool(captured)
         self.run_worker(lambda: self._run_scop(captured), thread=True)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item_id = event.item.id or ""
         if not item_id.startswith("page-"):
             return
-        key = item_id[5:]  # strip "page-" prefix
-        args = next((a for k, _, a in self._PAGES if k == key), [])
-        self._navigate(args)
+        self._navigate(item_id[5:])  # strip "page-" prefix
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back-btn":
-            self._navigate([])
+            current = next((p for p in self._PAGES if p[0] == self._current_key), None)
+            parent_key = current[3] if current else None
+            self._navigate(parent_key or "home")
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
