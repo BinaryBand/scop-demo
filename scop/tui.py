@@ -75,11 +75,11 @@ class ScopTuiApp(App[None]):
     # parent=None  → root page, no back button when active
     # parent="xyz" → sub-page, back button navigates to parent
     _PAGES: ClassVar[list[tuple[str, str, list[str], str | None]]] = [
-        ("home", "Home", [], None),
-        ("snapshot", "Snapshots", ["snapshot"], None),
-        ("list", "  List", ["snapshot", "--list"], "snapshot"),
-        ("list-all", "  All", ["snapshot", "--list", "--all"], "snapshot"),
-        ("diff", "  Diff", ["snapshot", "diff"], "snapshot"),
+        ("home", "🏠 Home", [], None),
+        ("snapshot", "📸 Snapshots", ["snapshot"], None),
+        ("list", "  📋 List", ["snapshot", "--list"], "snapshot"),
+        ("list-all", "  📋 All", ["snapshot", "--list", "--all"], "snapshot"),
+        ("diff", "  🔍 Diff", ["snapshot", "diff"], "snapshot"),
     ]
 
     CSS = """
@@ -241,8 +241,19 @@ class ScopTuiApp(App[None]):
 
     def page_begin(self, e: dict[str, Any]) -> None:
         title = e.get("title") or e.get("room") or "scop"
-        self.title = f"{e.get('icon', '')} {title}".strip()
+        icon = e.get("icon", "")
+        self.title = f"{icon} {title}".strip()
         self.sub_title = e.get("subtitle", "")
+        # If SCOP provided an icon, update the matching nav label (root pages only).
+        # Sub-page icons (List, All, Diff) come from _PAGES defaults, not PAGE_BEGIN.
+        if icon:
+            page = next((p for p in self._PAGES if p[0] == self._current_key), None)
+            if page and page[3] is None:  # root pages only — sub-pages use _PAGES defaults
+                bare = " ".join(w for w in page[1].split() if all(ord(c) <= 127 for c in w))
+                for item in self.query(f"#page-{self._current_key}").results(ListItem):
+                    for lbl in item.query(Label).results(Label):
+                        lbl.update(f"{icon} {bare}")
+                    break
         self.query_one("#main", ScrollableContainer).remove_children()
         self._tables.clear()
         self._lists.clear()
