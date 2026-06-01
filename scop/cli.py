@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import os
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -93,8 +94,16 @@ def _build_parser() -> argparse.ArgumentParser:
 # ── Stream renderer ───────────────────────────────────────────────────────────
 
 
+def _is_tty(f: IO[str]) -> bool:
+    try:
+        return os.isatty(f.fileno())
+    except Exception:
+        return False
+
+
 async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[str]) -> bool:
-    """Consume a stream and emit SCOP NDJSON lines to out."""
+    """Consume a stream: human-readable msg lines on a TTY, NDJSON otherwise."""
+    tty = _is_tty(out)
     async for event in stream:
         pri = event.pri
         raw_msgid = getattr(event, "msgid", "")
@@ -105,7 +114,12 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
         if quiet and msgid_name.endswith("PROCESS_LOG"):
             continue
 
-        out.write(f"{event.to_ndjson()}\n")
+        if tty:
+            msg = getattr(event, "msg", "").strip()
+            if msg:
+                out.write(f"{msg}\n")
+        else:
+            out.write(f"{event.to_ndjson()}\n")
 
     result = stream.result
     if result is None:

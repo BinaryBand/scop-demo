@@ -45,9 +45,21 @@ class CreateSnapshotService(Service):
             )
         )
 
-        snap = self._port.create_snapshot(
-            path=self._path, dry_run=dr, recursive=self._recursive, force=self._force
-        )
+        try:
+            snap = self._port.create_snapshot(
+                path=self._path, dry_run=dr, recursive=self._recursive, force=self._force
+            )
+        except RuntimeError as exc:
+            stream.emit(
+                SyslogMessage(
+                    pri=4,
+                    msgid=MSGID.PROCESS_END,
+                    room=r,
+                    msg=str(exc),
+                    data={"id": "snap", "ok": False},
+                )
+            )
+            return
 
         stream.emit(
             SyslogMessage(
