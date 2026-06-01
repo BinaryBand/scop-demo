@@ -1,11 +1,31 @@
+# dispatches: cli-imports-appdispatcher-only
+# wires:      deferred — no gate yet (docs/TODO)
+# implements: no-adapter-cross-import
+# calls:      import-linter
+# reads:      ruff + ty (frozen models)
+# types:      ruff FA + TID251
+# uses:       deferred — no gate yet (docs/TODO)
+---
+id: cli-imports-appdispatcher-only
+language: python
+severity: error
+message: >
+  cli.py may only import AppDispatcher — reaching past it into app/ violates the dispatches edge contract.
+rule:
+  any:
+    - pattern: "from scop.app.$MOD import $$$"
+    - pattern: "import scop.app.$MOD"
+  not:
+    regex: "scop\\.app\\.dispatcher\\b"
+files:
+  - "scop/cli.py"
 ---
 # implements verb — Forbids: constructing or calling another adapter
 id: no-adapter-cross-import
 language: python
 severity: error
 message: >
-  Adapters must not import other adapter modules — each adapter implements
-  its port in isolation (implements edge contract)
+  Adapters must not import other adapter modules — each adapter implements its port in isolation (implements edge contract)
 rule:
   any:
     - pattern: "from scop.adapters.$MOD import $$$"
@@ -19,8 +39,7 @@ id: no-app-utils-import
 language: python
 severity: error
 message: >
-  app/ must not import scop.utils directly; route runtime/infrastructure through
-  ports and adapters.
+  app/ must not import scop.utils directly; route runtime/infrastructure through ports and adapters.
 rule:
   any:
     - pattern: "from scop.utils.$MOD import $$$"
