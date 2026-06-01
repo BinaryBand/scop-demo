@@ -121,7 +121,7 @@ class ScopTuiApp(App[None]):
     #action-form Input { margin: 0 0 1 0; }
     #action-form Select { margin: 0 0 1 0; }
     #action-form Button { width: auto; }
-    #activity { height: 8; border-top: tall $primary; }
+    #activity { height: 8; border-top: tall $primary; display: none; }
     .stat { margin-bottom: 1; }
     DataTable { height: auto; }
     ListView > ListItem { padding: 0 1; }
@@ -129,6 +129,7 @@ class ScopTuiApp(App[None]):
 
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("q", "quit", "Quit"),
+        Binding("ctrl+l", "toggle_log", "Log"),
         Binding("tab", "focus_next", "Next Pane"),
         Binding("shift+tab", "focus_previous", "Prev Pane"),
         Binding("j", "cursor_down", "Down", show=False),
@@ -615,6 +616,10 @@ class ScopTuiApp(App[None]):
         if isinstance(focused, DataTable):
             return focused
         return next(self.query("DataTable").results(DataTable), None)
+
+    def action_toggle_log(self) -> None:
+        panel = self.query_one("#activity", ScrollableContainer)
+        panel.display = not panel.display
 
     def action_cursor_down(self) -> None:
         table = self._active_table()
