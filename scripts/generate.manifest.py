@@ -18,6 +18,8 @@ from scop.models.manifest import (
 from scop.utils.proc import run_resolved
 
 DEFAULT_OUT = "scop.toml"
+SCHEMA_REL_PATH = "scop/models/schemas/scop.manifest.schema.json"
+SCHEMA_TAG = f"#:schema {SCHEMA_REL_PATH}"
 
 
 def _run_scop_ndjson(args: list[str]) -> list[dict[str, object]]:
@@ -742,6 +744,37 @@ def _manifest_dict_to_toml(payload: dict[str, object]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _ensure_schema_file() -> None:
+    schema_path = Path(SCHEMA_REL_PATH)
+    if schema_path.exists():
+        return
+
+    result = run_resolved(
+        [sys.executable, "scripts/generate.manifest_schema.py"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        stdout = result.stdout.strip()
+        details = stderr or stdout or "unknown error"
+        raise RuntimeError(f"failed to generate schema at {SCHEMA_REL_PATH}: {details}")
+
+
+def _with_schema_tag(toml_payload: str) -> str:
+    lines = toml_payload.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+
+    if lines and lines[0].strip().startswith("#:schema "):
+        lines[0] = SCHEMA_TAG
+        return "\n".join(lines) + "\n"
+
+    return f"{SCHEMA_TAG}\n\n{toml_payload.lstrip()}"
+
+
 def generate_manifest() -> ScopManifest:
     draft = discover_manifest_draft()
     payload = _normalize_discovered_to_manifest_payload(draft)
@@ -780,7 +813,8 @@ def main(argv: list[str] | None = None) -> int:
         if not output.endswith("\n"):
             output += "\n"
     else:
-        output = _manifest_dict_to_toml(manifest_dict)
+        _ensure_schema_file()
+        output = _with_schema_tag(_manifest_dict_to_toml(manifest_dict))
 
     if ns.out == "-":
         sys.stdout.write(output)
