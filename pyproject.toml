@@ -22,9 +22,6 @@ scop-gui = "scop.gui:main"
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[project.optional-dependencies]
-dev = ["import-linter", "ast-grep-cli", "ruff", "ty"]
-
 [tool.ruff]
 target-version = "py311"
 line-length = 100
@@ -135,4 +132,10 @@ error-on-warning = true
 output-format = "full"
 
 [dependency-groups]
-dev = ["pytest (>=9.0.3,<10.0.0)"]
+dev = [
+    "pytest (>=9.0.3,<10.0.0)",
+    "import-linter",
+    "ast-grep-cli",
+    "ruff",
+    "ty",
+]

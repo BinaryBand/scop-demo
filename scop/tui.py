@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,8 @@ from textual.widgets import (
     RichLog,
     Static,
 )
+
+from scop.utils.proc import run_resolved
 
 # ── In-flight accumulators ────────────────────────────────────────────────────
 
@@ -418,11 +421,11 @@ def main() -> None:
         sys.stdout.write(
             "scop-tui — SCOP §10 event stream renderer\n\n"
             "Usage:\n"
-            "  scop-tui                          # standalone with nav\n"
-            "  scop [command] | scop-tui         # pipe a single command\n"
-            "  scop-tui --from events.ndjson     # replay recorded stream\n"
-            '  scop-tui --cmd "scop snapshot"  # run command directly\n\n'
-            "Keys: q quit  tab/shift+tab change pane  up/down or j/k move rows\n"
+            "  scop [command] | scop-tui\n"
+            "  scop-tui < events.ndjson\n\n"
+            "  scop-tui --from events.ndjson\n"
+            '  scop-tui --cmd "scop snapshot --list"\n\n'
+            "Keys: q quit, tab/shift+tab change pane, up/down or j/k move rows\n"
         )
         sys.exit(0)
 
@@ -434,7 +437,17 @@ def main() -> None:
         return
 
     if len(args) >= 2 and args[0] == "--cmd":
-        result = subprocess.run(args[1], shell=True, capture_output=True, text=True)
+        try:
+            cmd_tokens = shlex.split(args[1], posix=False)
+        except ValueError as exc:
+            sys.stderr.write(f"Invalid --cmd value: {exc}\n")
+            sys.exit(2)
+
+        if not cmd_tokens:
+            sys.stderr.write("Invalid --cmd value: empty command\n")
+            sys.exit(2)
+
+        result = run_resolved(cmd_tokens, capture_output=True, text=True, check=False)
         if result.stderr:
             sys.stderr.write(result.stderr)
         _consume(io.StringIO(result.stdout))
