@@ -6,7 +6,7 @@ authors = [
     { name = "BinaryBand", email = "BinaryBand@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = ["rich (>=15.0.0,<16.0.0)"]
+dependencies = ["rich (>=15.0.0,<16.0.0)", "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\""]
 
 [project.scripts]
 scop = "scop.cli:main"
@@ -72,6 +72,7 @@ select = [
 "cryptography".msg = "Encryption belongs in utils/crypto only"
 "pydantic".msg = "Pydantic models belong in models/ only"
 "rich".msg = "TUI rendering belongs in tui.py only"
+"textual".msg = "TUI rendering belongs in tui.py only"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
