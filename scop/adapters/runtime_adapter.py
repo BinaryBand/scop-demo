@@ -20,6 +20,7 @@ class RuntimeAdapter(Adapter, RuntimePort, _RuntimeStreamOps):
         self._queues: dict[int, asyncio.Queue[SyslogMessage | None]] = {}
         self._results: dict[int, ResolvedResult | None] = {}
         self._next_stream_id = 0
+        self._main_loop: asyncio.AbstractEventLoop | None = None
 
     def create_stream(self) -> StreamingResult:
         return self._stream_factory(self)
@@ -31,12 +32,24 @@ class RuntimeAdapter(Adapter, RuntimePort, _RuntimeStreamOps):
         self._results[stream_id] = None
         return stream_id
 
+    def _put(self, stream_id: int, item: SyslogMessage | None) -> None:
+        """Thread-safe event dispatch: use call_soon_threadsafe from worker threads."""
+        try:
+            current = asyncio.get_running_loop()
+        except RuntimeError:
+            current = None
+
+        if current is self._main_loop or self._main_loop is None:
+            self._queues[stream_id].put_nowait(item)
+        else:
+            self._main_loop.call_soon_threadsafe(self._queues[stream_id].put_nowait, item)
+
     def emit(self, stream_id: int, event: SyslogMessage) -> None:
-        self._queues[stream_id].put_nowait(event)
+        self._put(stream_id, event)
 
     def resolve(self, stream_id: int, ok: bool, data: SyslogMessage) -> None:
         self._results[stream_id] = ResolvedResult(ok=ok, data=data)
-        self._queues[stream_id].put_nowait(None)
+        self._put(stream_id, None)
 
     def result(self, stream_id: int) -> ResolvedResult | None:
         return self._results.get(stream_id)
@@ -52,8 +65,14 @@ class RuntimeAdapter(Adapter, RuntimePort, _RuntimeStreamOps):
                 return
             yield event
 
+    async def _run_offloaded(self, job: Coroutine[object, object, object]) -> None:
+        """Run a blocking coroutine in a thread so the main event loop stays responsive."""
+        loop = asyncio.get_running_loop()
+        self._main_loop = loop
+        await loop.run_in_executor(None, asyncio.run, job)
+
     def spawn(self, job: Coroutine[object, object, object], stream: StreamPort) -> None:
         _ = stream
-        task = asyncio.create_task(job)
+        task = asyncio.create_task(self._run_offloaded(job))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)

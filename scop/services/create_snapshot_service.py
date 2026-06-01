@@ -28,9 +28,9 @@ class CreateSnapshotService(Service):
         dr = self._dry_run
         suffix = " (dry run)" if dr else ""
 
-        total = self._port.count_snapshot_files(path=self._path, recursive=self._recursive)
-
-        begin: dict = {"id": "snap", "label": f"Snapshotting{suffix}", "total": total}
+        # Emit immediately — no pre-count, so the bar appears right away.
+        # The adapter signals the real total on its first on_progress call.
+        begin: dict = {"id": "snap", "label": f"Snapshotting{suffix}"}
         if dr:
             begin["dry_run"] = True
         if self._recursive:
@@ -42,19 +42,26 @@ class CreateSnapshotService(Service):
                 pri=6,
                 msgid=MSGID.PROCESS_BEGIN,
                 room=r,
-                msg=f"Starting snapshot{suffix} ({total} files)",
+                msg=f"Starting snapshot{suffix}",
                 data=begin,
             )
         )
 
         def _on_progress(current: int, file_total: int) -> None:
+            listing = file_total == 0
             stream.emit(
                 SyslogMessage(
                     pri=7,
                     msgid=MSGID.PROCESS_UPDATE,
                     room=r,
-                    msg=f"hashing {current}/{file_total}",
-                    data={"id": "snap", "current": current, "total": file_total},
+                    msg=f"{'scanning' if listing else 'hashing'} {current}"
+                    + (f"/{file_total}" if not listing else " files found"),
+                    data={
+                        "id": "snap",
+                        "current": current,
+                        "total": file_total,
+                        "phase": "list" if listing else "hash",
+                    },
                 )
             )
 

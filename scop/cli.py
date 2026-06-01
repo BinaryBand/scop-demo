@@ -119,9 +119,8 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
 
         if tty:
             if msgid_name == "PROCESS_BEGIN":
-                raw_total = data.get("total")
                 bars[proc_id] = _tqdm(
-                    total=int(raw_total) if raw_total is not None else None,
+                    total=None,  # indeterminate until adapter signals total
                     desc=str(data.get("label", proc_id)),
                     unit="file",
                     file=out,
@@ -131,8 +130,19 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
                 )
                 continue
             if msgid_name == "PROCESS_UPDATE" and proc_id in bars:
-                bars[proc_id].n = int(data.get("current", 0))
-                bars[proc_id].refresh()
+                bar = bars[proc_id]
+                phase = data.get("phase", "hash")
+                current = int(data.get("current", 0))
+                raw_total = data.get("total")
+                if phase == "list":
+                    bar.set_description(f"Scanning ({current} found)")
+                    bar.refresh()
+                else:
+                    if raw_total is not None and bar.total is None:
+                        bar.total = int(raw_total)
+                        bar.set_description(str(data.get("label", proc_id)))
+                    bar.n = current
+                    bar.refresh()
                 continue
             if msgid_name == "PROCESS_END" and proc_id in bars:
                 bars.pop(proc_id).close()

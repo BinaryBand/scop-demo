@@ -148,17 +148,24 @@ class SnapshotAdapter(Adapter, SnapshotPort):
     ) -> SnapshotRecord:
         root = Path(path).resolve()
 
-        # Hash files one by one so on_progress fires per file.
+        # Collect entries lazily so on_progress fires incrementally during listing,
+        # not only after the entire tree has been materialised by sorted().
         entries: list[tuple[str, Path]] = []
         pattern = "**/*" if recursive else "*"
-        for p in sorted(root.glob(pattern)):
+        for p in root.glob(pattern):
             if not p.is_file():
                 continue
             if any(part.startswith(".") for part in p.relative_to(root).parts):
                 continue
             entries.append((str(p.relative_to(root)), p))
+            if on_progress and len(entries) % 100 == 0:
+                on_progress(len(entries), 0)  # total=0 → listing phase
 
+        entries.sort()  # stable sort after collection for a consistent manifest
         file_total = len(entries)
+        if on_progress:
+            on_progress(0, file_total)  # total known — switch to determinate
+
         scanned: list[tuple[str, Path, str, int]] = []
         files: dict[str, dict] = {}
         for i, (rel, p) in enumerate(entries):
