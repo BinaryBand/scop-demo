@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from scop.adapters.snapshot_adapter import SnapshotAdapter
 from scop.bases import BaseApp
 from scop.models.protocol import MSGID, SyslogMessage
@@ -9,27 +11,45 @@ from scop.services.diff_snapshots_service import DiffSnapshotsService
 from scop.services.list_snapshots_service import ListSnapshotsService
 from scop.services.snapshot_status_service import SnapshotStatusService
 
-_COMMANDS = [
-    ("snapshot create", "Take a new snapshot"),
-    ("snapshot diff", "Compare two snapshots"),
-    ("snapshot --list", "List all snapshots"),
-    ("snapshot --status", "Show snapshot stats"),
-]
-
 _ROOT_HELP_ITEMS = [
     {
         "item_id": "snapshot create",
         "value": {
             "command": "snapshot create",
             "description": "Take a new snapshot",
-            "args": "none",
-            "optional_flags": [
-                "--dry-run, -n",
-                "--recursive, -r",
-                "--force, -f",
-                "--verbose, -v",
-                "--quiet, -q",
-                "--output FILE, -o",
+            "kind": "action",
+            "params": [
+                {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
+                {
+                    "name": "--force",
+                    "kind": "flag",
+                    "short": "-f",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--recursive",
+                    "kind": "flag",
+                    "short": "-r",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
             ],
         },
     },
@@ -38,21 +58,102 @@ _ROOT_HELP_ITEMS = [
         "value": {
             "command": "snapshot diff",
             "description": "Compare two snapshots",
-            "args": ["--from SNAPSHOT_ID", "--to SNAPSHOT_ID"],
-            "optional_flags": [
-                "--verbose, -v",
-                "--quiet, -q",
-                "--output FILE, -o",
+            "kind": "action",
+            "params": [
+                {
+                    "name": "--from",
+                    "kind": "flag",
+                    "metavar": "SNAPSHOT_ID",
+                    "required": True,
+                },
+                {
+                    "name": "--to",
+                    "kind": "flag",
+                    "metavar": "SNAPSHOT_ID",
+                    "required": True,
+                },
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
             ],
         },
     },
     {
         "item_id": "snapshot --list",
-        "value": {"command": "snapshot --list", "description": "List all snapshots"},
+        "value": {
+            "command": "snapshot --list",
+            "description": "List all snapshots",
+            "kind": "action",
+            "params": [
+                {
+                    "name": "--all",
+                    "kind": "flag",
+                    "short": "-a",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
+            ],
+        },
     },
     {
         "item_id": "snapshot --status",
-        "value": {"command": "snapshot --status", "description": "Show snapshot stats"},
+        "value": {
+            "command": "snapshot --status",
+            "description": "Show snapshot stats",
+            "kind": "action",
+            "params": [
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
+            ],
+        },
     },
 ]
 
@@ -62,15 +163,45 @@ _CREATE_HELP_ITEMS = [
         "value": {
             "command": "snapshot create",
             "description": "Take a new snapshot",
-            "args": "none",
-            "optional_flags": [
-                "--dry-run, -n",
-                "--recursive, -r",
-                "--force, -f",
-                "--verbose, -v",
-                "--quiet, -q",
-                "--output FILE, -o",
-                "--help, -h",
+            "kind": "action",
+            "params": [
+                {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
+                {
+                    "name": "--force",
+                    "kind": "flag",
+                    "short": "-f",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--help",
+                    "kind": "flag",
+                    "short": "-h",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--recursive",
+                    "kind": "flag",
+                    "short": "-r",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
             ],
         },
     }
@@ -82,12 +213,44 @@ _DIFF_HELP_ITEMS = [
         "value": {
             "command": "snapshot diff",
             "description": "Compare two snapshots",
-            "args": ["--from SNAPSHOT_ID", "--to SNAPSHOT_ID"],
-            "optional_flags": [
-                "--verbose, -v",
-                "--quiet, -q",
-                "--output FILE, -o",
-                "--help, -h",
+            "kind": "action",
+            "params": [
+                {
+                    "name": "--from",
+                    "kind": "flag",
+                    "metavar": "SNAPSHOT_ID",
+                    "required": True,
+                },
+                {
+                    "name": "--to",
+                    "kind": "flag",
+                    "metavar": "SNAPSHOT_ID",
+                    "required": True,
+                },
+                {
+                    "name": "--help",
+                    "kind": "flag",
+                    "short": "-h",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--output",
+                    "kind": "flag",
+                    "short": "-o",
+                    "metavar": "FILE",
+                },
+                {
+                    "name": "--quiet",
+                    "kind": "flag",
+                    "short": "-q",
+                    "type": "boolean",
+                },
+                {
+                    "name": "--verbose",
+                    "kind": "flag",
+                    "short": "-v",
+                    "type": "boolean",
+                },
             ],
         },
     }
@@ -172,7 +335,10 @@ class SnapApp(BaseApp):
             )
         )
         for item in items:
-            value = item["value"]
+            raw_value = item["value"]
+            if not isinstance(raw_value, dict):
+                continue
+            value = cast(dict[str, Any], raw_value)
             command = value.get("command", "")
             description = value.get("description", "")
             stream.emit(

@@ -65,7 +65,11 @@ class RootApp(BaseApp):
                     data={
                         "id": "help",
                         "item_id": cmd,
-                        "value": {"command": cmd, "description": desc},
+                        "value": {
+                            "command": cmd,
+                            "description": desc,
+                            "kind": "group",
+                        },
                     },
                 )
             )

@@ -606,23 +606,40 @@ class ScopTuiApp(App[None]):
                 desc = value.get("description", "")
                 main.mount(Static(f"  {prefix} [cyan]{cmd}[/cyan]  [dim]{desc}[/dim]"))
 
-                args_value = value.get("args", value.get("arguments"))
-                if isinstance(args_value, str) and args_value.strip():
-                    main.mount(Static(f"      [dim]args:[/dim] {args_value.strip()}"))
-                elif isinstance(args_value, list):
-                    args_tokens = [str(token).strip() for token in args_value if str(token).strip()]
-                    if args_tokens:
-                        main.mount(Static(f"      [dim]args:[/dim] {', '.join(args_tokens)}"))
+                params_value = value.get("params")
+                if isinstance(params_value, list) and params_value:
+                    required_params: list[str] = []
+                    optional_params: list[str] = []
 
-                flags_value = value.get("optional_flags", value.get("options", value.get("flags")))
-                if isinstance(flags_value, str) and flags_value.strip():
-                    main.mount(Static(f"      [dim]optional:[/dim] {flags_value.strip()}"))
-                elif isinstance(flags_value, list):
-                    option_tokens = [
-                        str(token).strip() for token in flags_value if str(token).strip()
-                    ]
-                    if option_tokens:
-                        main.mount(Static(f"      [dim]optional:[/dim] {', '.join(option_tokens)}"))
+                    for param in params_value:
+                        if not isinstance(param, dict):
+                            continue
+                        name = param.get("name")
+                        if not isinstance(name, str) or not name.strip():
+                            continue
+                        token = name.strip()
+                        short = param.get("short")
+                        if isinstance(short, str) and short.strip():
+                            token = f"{token} ({short.strip()})"
+                        metavar = param.get("metavar")
+                        if isinstance(metavar, str) and metavar.strip():
+                            token = f"{token} {metavar.strip()}"
+
+                        kind = param.get("kind")
+                        required = bool(param.get("required", kind == "positional"))
+                        if required:
+                            required_params.append(token)
+                        else:
+                            optional_params.append(token)
+
+                    if required_params:
+                        main.mount(
+                            Static(f"      [dim]required:[/dim] {', '.join(required_params)}")
+                        )
+                    if optional_params:
+                        main.mount(
+                            Static(f"      [dim]optional:[/dim] {', '.join(optional_params)}")
+                        )
             else:
                 main.mount(Static(f"  {prefix} {value}"))
 
