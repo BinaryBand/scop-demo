@@ -20,7 +20,7 @@ _ROOT_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
-                {"name": "path", "kind": "positional", "metavar": "PATH"},
+                {"name": "path", "kind": "positional", "metavar": "PATH", "input_type": "path"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -68,7 +68,12 @@ _ROOT_HELP_ITEMS = [
                     "metavar": "SNAPSHOT_ID",
                     "select_from": "snapshot --list --all",
                 },
-                {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
+                {
+                    "name": "dest",
+                    "kind": "positional",
+                    "metavar": "OUTPUT_DIR",
+                    "input_type": "path",
+                },
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
                 {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},
             ],
@@ -186,7 +191,7 @@ _CREATE_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
-                {"name": "path", "kind": "positional", "metavar": "PATH"},
+                {"name": "path", "kind": "positional", "metavar": "PATH", "input_type": "path"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -292,7 +297,12 @@ _RESTORE_HELP_ITEMS = [
                     "metavar": "SNAPSHOT_ID",
                     "select_from": "snapshot --list --all",
                 },
-                {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
+                {
+                    "name": "dest",
+                    "kind": "positional",
+                    "metavar": "OUTPUT_DIR",
+                    "input_type": "path",
+                },
                 {"name": "--help", "kind": "flag", "short": "-h", "type": "boolean"},
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
                 {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},

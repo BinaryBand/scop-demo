@@ -25,6 +25,7 @@ from typing import Any, ClassVar, TextIO
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.suggester import Suggester
 from textual.widgets import (
     Button,
     DataTable,
@@ -72,6 +73,27 @@ class _PageSpec:
     base_args: list[str]
     query_flags: list[list[str]]
     parent_key: str | None = None
+
+
+# ── Path autocomplete ─────────────────────────────────────────────────────────
+
+
+class _PathSuggester(Suggester):
+    """Filesystem directory autocomplete for Input widgets."""
+
+    async def get_suggestion(self, value: str) -> str | None:
+        p = Path(value) if value else Path()
+        if value.endswith("/"):
+            directory, prefix = p, ""
+        else:
+            directory, prefix = p.parent, p.name
+        if not directory.is_dir():
+            return None
+        matches = sorted(c for c in directory.iterdir() if c.name.startswith(prefix) and c.is_dir())
+        if not matches:
+            return None
+        suggestion = str(matches[0])
+        return suggestion + "/" if not suggestion.endswith("/") else suggestion
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -468,7 +490,7 @@ class ScopTuiApp(App[None]):
         if not isinstance(raw_params, list):
             return
 
-        input_rows: list[tuple[str, str, str, str, str | None]] = []
+        input_rows: list[tuple[str, str, str, str, str | None, str | None]] = []
         mounted_any = False
 
         for idx, raw_param in enumerate(raw_params):
@@ -503,13 +525,14 @@ class ScopTuiApp(App[None]):
                 continue
 
             select_from = param.get("select_from")
+            input_type = param.get("input_type")
             input_id = self._form_input_id(current_page.key, idx)
             short = param.get("short")
             short_text = f" ({short})" if isinstance(short, str) and short.strip() else ""
             placeholder = (
                 metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
             )
-            input_rows.append((input_id, name, short_text, placeholder, select_from))
+            input_rows.append((input_id, name, short_text, placeholder, select_from, input_type))
             self._form_inputs_by_page[current_page.key].append((input_id, name, kind))
             mounted_any = True
 
@@ -520,7 +543,7 @@ class ScopTuiApp(App[None]):
         main.mount(form_box)
         form_box.mount(Static("[bold]Required Inputs[/bold]"))
 
-        for input_id, name, short_text, placeholder, select_from in input_rows:
+        for input_id, name, short_text, placeholder, select_from, input_type in input_rows:
             form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
             if isinstance(select_from, str) and select_from.strip():
                 form_box.mount(Select([], id=input_id, prompt=f"Choose {placeholder}…"))
@@ -528,6 +551,10 @@ class ScopTuiApp(App[None]):
                 self.run_worker(
                     lambda sid=input_id, sa=select_args: self._fetch_select_options(sid, sa),
                     thread=True,
+                )
+            elif input_type == "path":
+                form_box.mount(
+                    Input(placeholder=placeholder, id=input_id, suggester=_PathSuggester())
                 )
             else:
                 form_box.mount(Input(placeholder=placeholder, id=input_id))
