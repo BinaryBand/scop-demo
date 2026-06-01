@@ -150,6 +150,7 @@ class ScopTuiApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self._prime_root_pages()
         self._refresh_nav_menu()
         if self._src is not None:
             self.run_worker(self._read_stream, thread=True)
@@ -180,6 +181,35 @@ class ScopTuiApp(App[None]):
     def _run_scop_pipeline(self, commands: list[list[str]]) -> None:
         for args in commands:
             self._run_scop(args)
+
+    def _prime_root_pages(self) -> None:
+        exe = shutil.which("scop") or "scop"
+        try:
+            result = subprocess.run(
+                [exe, "--help"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            return
+
+        items: list[tuple[str, Any]] = []
+        for raw in io.StringIO(result.stdout):
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                event: dict[str, Any] = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("msgid") != "LIST_APPEND" or event.get("id") != "help":
+                continue
+            items.append((str(event.get("item_id", "")), event.get("value", "")))
+
+        if items:
+            self._ingest_help_items(items)
 
     def _page_by_key(self, key: str) -> _PageSpec | None:
         return self._pages.get(key)
