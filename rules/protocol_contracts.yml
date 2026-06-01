@@ -1,0 +1,57 @@
+---
+# SCOP §5: producer must emit NDJSON objects, not raw print lines.
+id: cli-no-direct-print
+language: python
+severity: error
+message: >
+  Avoid direct print() in cli.py. Emit NDJSON events to stdout (SCOP §5, §11).
+rule:
+  pattern: "print($$$ARGS)"
+files:
+  - "scop/cli.py"
+---
+# SCOP §6: room values are derived mechanically from command tokens.
+id: no-literal-room-in-syslogmessage
+language: python
+severity: error
+message: >
+  room must be mechanically derived from subcommand path, not hard-coded string literals (SCOP §6)
+rule:
+  pattern: "SyslogMessage($$$, room=$ROOM, $$$)"
+constraints:
+  ROOM:
+    kind: string
+files:
+  - "scop/app/**/*.py"
+  - "scop/services/**/*.py"
+---
+# SCOP §8.1: --version is a required query flag.
+id: cli-must-define-version-flag
+language: python
+severity: error
+message: >
+  cli.py must define --version query flag (SCOP §8.1)
+rule:
+  all:
+    - kind: module
+    - regex: "(?s)^"
+    - not:
+        regex: "add_argument\\(\"--version\""
+files:
+  - "scop/cli.py"
+---
+# CLI contract: prefer canonical snapshot command namespace.
+id: cli-forbid-legacy-top-level-commands
+language: python
+severity: error
+message: >
+  Use snapshot command namespace instead of legacy top-level commands (see CLI_CONTRACT.md)
+rule:
+  any:
+    - pattern: "sub.add_parser(\"snap\", $$$)"
+    - pattern: "sub.add_parser(\"diff\", $$$)"
+    - pattern: "sub.add_parser(\"status\", $$$)"
+    - pattern: "sub.add_parser(\"log\", $$$)"
+    - pattern: "sub.add_parser(\"restore\", $$$)"
+files:
+  - "scop/cli.py"

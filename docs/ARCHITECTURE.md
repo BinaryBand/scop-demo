@@ -107,21 +107,21 @@ select = [
     "ARG",  # unused arguments
     "FA",   # require from __future__ import annotations
     "DTZ",  # datetime timezone awareness
-    # D (docstrings)
-    # FBT (boolean trap)
-    # EM (exception messages)
-    # PL (pylint full set)
-    # TCH (TYPE_CHECKING) deliberately omitted
+    # D     (docstrings)     — high noise on new projects; add when stable
+    # FBT   (boolean trap)   — add without FBT003 when API surface is settled
+    # EM    (exception messages) — prescriptive; low entropy gain
+    # PL    (pylint full set) — too broad; conflicts with existing rules
+    # TCH   (TYPE_CHECKING)  — deliberately omitted; TYPE_CHECKING is banned (Rule 12)
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "ARG"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"typing.TYPE_CHECKING".msg  = "Import directly — use 'from __future__ import annotations' for forward references (Rule 12)"
+"typing.TYPE_CHECKING".msg = "Import directly — use 'from __future__ import annotations' for forward references (Rule 12)"
 ```
 
-> **Consider also:** [Vulture](https://github.com/jendrikseipp/vulture) for dead code detection, [Lizard](https://github.com/terryyin/lizard) for cyclomatic complexity, and [jscpd](https://github.com/kucherenko/jscpd) for copy-paste detection — none are required but all complement the above toolchain on long-lived projects.
+> **Consider also:** [Vulture](https://github.com/jendrikseipp/vulture) for dead code detection, [Lizard](https://github.com/terryyin/lizard) for cyclomatic complexity, [jscpd](https://github.com/kucherenko/jscpd) for copy-paste detection, [Prettier](https://prettier.io) for non-Python file formatting (YAML, JSON, Markdown, HTML), and [`.editorconfig`](https://editorconfig.org) as the editor-agnostic baseline for indentation and line endings that all other formatters build on. None are required but all complement the toolchain on long-lived projects.
 
 ## Conventions
 
@@ -184,8 +184,8 @@ classDiagram
     AppDispatcher --> StreamingResult : creates & passes down
     StreamingResult --> SyslogMessage : emits
     StreamingResult --> ResolvedResult : terminates with
-    BaseApp <|-- SnapApp
-    BaseApp <|-- DiffApp
+    BaseApp <|-- ConcreteAppA
+    BaseApp <|-- ConcreteAppB
 ```
 
 ## Marker Bases
@@ -254,7 +254,7 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 
 `utils/` is the **mechanism layer** — thin, stateless wrappers over the OS and stdlib with no domain meaning and no port implementations. Only `adapters/` may import from `utils/`.
 
-Directories at the root of `utils/` can only be the following.
+Each permitted name MAY exist as either `name.py` or `name/`; no other modules or packages at the `utils/` root are permitted.
 
 | Name | What it holds | Hard boundary |
 | --- | --- | --- |

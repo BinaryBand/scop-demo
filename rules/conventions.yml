@@ -4,7 +4,7 @@
 # Rule 4:  adapter-must-declare-port
 # Rule 5:  adapter/service/port/app-class-convention, port-must-extend-port
 # Rule 6:  models-must-be-value-type; ruff ANN, B024; ty
-# Rule 7:  deferred — no gate yet (docs/TODO)
+# Rule 7:  cli-only-import-appdispatcher
 # Rule 8:  no-argparse-outside-cli, no-sys-exit-outside-cli
 # Rule 9:  msgid-must-use-enum
 # Rule 10: utils-allowlist
@@ -144,8 +144,6 @@ files:
   - "scop/app/**/*_app.py"
 ---
 # Rule 5 (extension): Every class in ports/ must extend Port.
-# port-class-convention above only covers *_port.py files; this catches every
-# file under ports/, including non-conforming ones like stream.py → IStream(Protocol).
 id: port-must-extend-port
 language: python
 severity: error
@@ -190,6 +188,24 @@ rule:
 files:
   - "scop/models/**/*.py"
 ---
+# Rule 7: cli.py may only import AppDispatcher
+id: cli-only-import-appdispatcher
+language: python
+severity: error
+message: >
+  cli.py may only import AppDispatcher from scop.app.dispatcher (Rule 7)
+rule:
+  all:
+    - any:
+        - pattern: "from scop.app.$MOD import $$$"
+        - pattern: "import scop.app.$MOD"
+        - pattern: "from scop.models.$MOD import $$$"
+        - pattern: "import scop.models.$MOD"
+    - not:
+        pattern: "from scop.app.dispatcher import AppDispatcher"
+files:
+  - "scop/cli.py"
+---
 # Rule 8: argparse and sys.exit only in cli.py
 id: no-argparse-outside-cli
 language: python
@@ -223,9 +239,6 @@ files:
   - "scop/utils/**/*.py"
 ---
 # Rule 9: MSGID from fixed table only
-# Covers both construction sites (SyslogMessage kwarg) and comparison sites
-# (equality against a `msgid` variable or attribute). The `msgid` name is the
-# structural anchor — no MSGID vocabulary list needed.
 id: msgid-must-use-enum
 language: python
 severity: error

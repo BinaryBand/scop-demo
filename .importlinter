@@ -26,6 +26,24 @@ forbidden_modules =
     scop.utils
 
 
+# cli.py — edge verb: dispatches
+# cli.py may only depend on app.dispatcher from internal modules.
+[importlinter:contract:cli]
+name = CLI may only import AppDispatcher module
+type = forbidden
+source_modules =
+    scop.cli
+forbidden_modules =
+    scop.adapters
+    scop.services
+    scop.models
+    scop.ports
+    scop.utils
+    scop.app
+ignore_imports =
+    scop.cli -> scop.app.dispatcher
+
+
 # app/ — edge verbs: wires, types
 # app/ is the composition root — it may import services, adapters, and ports.
 # The only forbidden direction is upward into cli.
