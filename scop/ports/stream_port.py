@@ -4,7 +4,7 @@ from abc import abstractmethod
 from collections.abc import AsyncIterator
 
 from scop.bases import Port
-from scop.models.protocol import SyslogMessage
+from scop.models.protocol import ResolvedResult, SyslogMessage
 
 
 class StreamPort(Port):
@@ -15,6 +15,10 @@ class StreamPort(Port):
 
     @abstractmethod
     def resolve(self, ok: bool, data: SyslogMessage) -> None: ...
+
+    @property
+    @abstractmethod
+    def result(self) -> ResolvedResult | None: ...
 
     @abstractmethod
     def __aiter__(self) -> AsyncIterator[SyslogMessage]: ...

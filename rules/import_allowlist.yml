@@ -18,7 +18,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
 files:
   - "scop/**/*.py"
   - "tests/**/*.py"
@@ -26,12 +26,38 @@ ignores:
   - "scop/cli.py"
   - "scop/adapters/**/*.py"
   - "scop/models/**/*.py"
+  - "scop/utils/concurrent.py"
+  - "scop/utils/concurrent/**/*.py"
   - "scop/utils/net.py"
   - "scop/utils/net/**/*.py"
   - "scop/utils/fmt.py"
   - "scop/utils/fmt/**/*.py"
   - "scop/utils/crypto.py"
   - "scop/utils/crypto/**/*.py"
+
+---
+# utils/concurrent: stdlib + asyncio-family runtime primitives
+id: import-allowlist-utils-concurrent
+language: python
+severity: error
+message: >
+  In utils/concurrent, external import '$MOD' is outside the concurrent allowlist.
+  Allowed here: stdlib, scop.*, and asyncio-family modules.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
+files:
+  - "scop/utils/concurrent.py"
+  - "scop/utils/concurrent/**/*.py"
 
 ---
 # models/: stdlib + pydantic (Rule 6 note in ARCHITECTURE.md)
@@ -52,7 +78,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|pydantic)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|pydantic)(?:\\..*)?$"
 files:
   - "scop/models/**/*.py"
 
@@ -75,7 +101,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|httpx)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|httpx)(?:\\..*)?$"
 files:
   - "scop/utils/net.py"
   - "scop/utils/net/**/*.py"
@@ -99,7 +125,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|yaml|tomli)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|yaml|tomli)(?:\\..*)?$"
 files:
   - "scop/utils/fmt.py"
   - "scop/utils/fmt/**/*.py"
@@ -123,7 +149,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|asyncio|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|cryptography)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop|cryptography)(?:\\..*)?$"
 files:
   - "scop/utils/crypto.py"
   - "scop/utils/crypto/**/*.py"
