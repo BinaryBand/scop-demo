@@ -1,3 +1,5 @@
+#:schema scop/models/schemas/scop.manifest.schema.json
+
 [app]
 name = "scop"
 version = "0.1.0"
