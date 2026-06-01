@@ -80,30 +80,6 @@ class ScopTuiApp(App[None]):
 
     TITLE = "scop-tui"
 
-    _PAGES: ClassVar[list[_PageSpec]] = [
-        _PageSpec(
-            key="home",
-            label="🏠 Home",
-            base_args=[],
-            query_flags=[["--version"], ["--help"]],
-            parent_key=None,
-        ),
-        _PageSpec(
-            key="snapshot",
-            label="📸 Snapshots",
-            base_args=["snapshot"],
-            query_flags=[["--status"], ["--list", "--all"], ["--help"]],
-            parent_key=None,
-        ),
-        _PageSpec(
-            key="diff",
-            label="  🔍 Diff",
-            base_args=["snapshot", "diff"],
-            query_flags=[],
-            parent_key="snapshot",
-        ),
-    ]
-
     CSS = """
     Horizontal { height: 1fr; }
     #nav {
@@ -138,9 +114,20 @@ class ScopTuiApp(App[None]):
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
+        self._pages: dict[str, _PageSpec] = {}
+        self._page_order: list[str] = []
         self._composite_active = False
         self._composite_page_started = False
         self._composite_page_end_remaining = 0
+        self._ensure_page(
+            _PageSpec(
+                key="home",
+                label="Home",
+                base_args=[],
+                query_flags=[["--version"], ["--help"]],
+                parent_key=None,
+            )
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -148,7 +135,10 @@ class ScopTuiApp(App[None]):
             with ScrollableContainer(id="nav"):
                 yield Static("Pages", id="nav-heading")
                 yield ListView(
-                    *[ListItem(Label(page.label), id=f"page-{page.key}") for page in self._PAGES],
+                    *[
+                        ListItem(Label(self._pages[key].label), id=self._nav_id_for_key(key))
+                        for key in self._page_order
+                    ],
                     id="nav-menu",
                 )
             with Vertical(id="right"):
@@ -160,6 +150,7 @@ class ScopTuiApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self._refresh_nav_menu()
         if self._src is not None:
             self.run_worker(self._read_stream, thread=True)
         else:
@@ -191,12 +182,92 @@ class ScopTuiApp(App[None]):
             self._run_scop(args)
 
     def _page_by_key(self, key: str) -> _PageSpec | None:
-        return next((page for page in self._PAGES if page.key == key), None)
+        return self._pages.get(key)
 
     def _commands_for_page(self, page: _PageSpec) -> list[list[str]]:
         if not page.query_flags:
             return [list(page.base_args)]
         return [[*page.base_args, *flags] for flags in page.query_flags]
+
+    def _nav_id_for_key(self, key: str) -> str:
+        return f"page-{key.replace('/', '__')}"
+
+    def _key_from_nav_id(self, item_id: str) -> str | None:
+        if not item_id.startswith("page-"):
+            return None
+        encoded = item_id[5:]
+        return encoded.replace("__", "/")
+
+    def _ensure_page(self, page: _PageSpec) -> None:
+        if page.key in self._pages:
+            return
+        self._pages[page.key] = page
+        self._page_order.append(page.key)
+
+    def _refresh_nav_menu(self) -> None:
+        nav = self.query_one("#nav-menu", ListView)
+        for key in self._page_order:
+            item_id = self._nav_id_for_key(key)
+            mounted_item = next(nav.query(f"#{item_id}").results(ListItem), None)
+            if mounted_item is None:
+                nav.mount(ListItem(Label(self._pages[key].label), id=item_id))
+                continue
+            label = next(mounted_item.query("Label").results(Label), None)
+            if label is not None:
+                label.update(self._pages[key].label)
+
+    def _infer_page_from_command(self, command: str, description: str) -> _PageSpec | None:
+        try:
+            tokens = [tok for tok in shlex.split(command, posix=False) if tok]
+        except ValueError:
+            return None
+        subcommands = [tok for tok in tokens if not tok.startswith("-")]
+        if not subcommands:
+            return None
+
+        key = "/".join(subcommands)
+        if key == "home":
+            return None
+
+        depth = len(subcommands) - 1
+        title = subcommands[-1].replace("-", " ").title()
+        label = f"{'  ' * depth}{title}"
+        if description and depth == 0:
+            label = title
+
+        if len(subcommands) == 1:
+            query_flags = [["--status"], ["--list", "--all"], ["--help"]]
+            parent_key = "home"
+        else:
+            query_flags = [["--help"]]
+            parent_key = "/".join(subcommands[:-1])
+
+        return _PageSpec(
+            key=key,
+            label=label,
+            base_args=subcommands,
+            query_flags=query_flags,
+            parent_key=parent_key,
+        )
+
+    def _ingest_help_items(self, items: list[tuple[str, Any]]) -> None:
+        changed = False
+        for _item_id, value in items:
+            if not isinstance(value, dict):
+                continue
+            command = value.get("command")
+            description = value.get("description", "")
+            if not isinstance(command, str):
+                continue
+            page = self._infer_page_from_command(
+                command, description if isinstance(description, str) else ""
+            )
+            if page is None or page.key in self._pages:
+                continue
+            self._ensure_page(page)
+            changed = True
+        if changed:
+            self._refresh_nav_menu()
 
     def _process_line(self, raw: str) -> None:
         raw = raw.strip()
@@ -235,9 +306,10 @@ class ScopTuiApp(App[None]):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item_id = event.item.id or ""
-        if not item_id.startswith("page-"):
+        key = self._key_from_nav_id(item_id)
+        if key is None:
             return
-        self._navigate(item_id[5:])  # strip "page-" prefix
+        self._navigate(key)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back-btn":
@@ -302,7 +374,9 @@ class ScopTuiApp(App[None]):
             page = self._page_by_key(self._current_key)
             if page and page.parent_key is None:  # root pages only — sub-pages use _PAGES defaults
                 bare = " ".join(w for w in page.label.split() if all(ord(c) <= 127 for c in w))
-                for item in self.query(f"#page-{self._current_key}").results(ListItem):
+                for item in self.query(f"#{self._nav_id_for_key(self._current_key)}").results(
+                    ListItem
+                ):
                     for lbl in item.query(Label).results(Label):
                         lbl.update(f"{icon} {bare}")
                     break
@@ -398,6 +472,8 @@ class ScopTuiApp(App[None]):
         state = self._lists.pop(e["id"], None)
         if not state:
             return
+        if e["id"] == "help":
+            self._ingest_help_items(state.items)
         main = self.query_one("#main", ScrollableContainer)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(state.items, 1):
