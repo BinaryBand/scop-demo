@@ -4,10 +4,29 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from collections.abc import AsyncIterator
+from typing import Protocol
 
 from scop.app.dispatcher import AppDispatcher
-from scop.app.stream import StreamingResult
-from scop.models.protocol import MSGID
+
+
+class _EventLike(Protocol):
+    pri: int
+
+    def to_ndjson(self) -> str: ...
+
+
+class _ResultLike(Protocol):
+    @property
+    def ok(self) -> bool: ...
+
+
+class _StreamLike(Protocol):
+    @property
+    def result(self) -> _ResultLike | None: ...
+
+    def __aiter__(self) -> AsyncIterator[_EventLike]: ...
+
 
 # ── Argument parser ───────────────────────────────────────────────────────────
 
@@ -16,27 +35,32 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="scop",
         description="File and directory snapshotter.",
+        add_help=False,
     )
+    p.add_argument("--help", "-h", action="store_true", help="Show available commands")
+    p.add_argument("--version", action="store_true", help="Show version")
     p.add_argument("--verbose", "-v", action="store_true", help="Include debug output")
     p.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
 
     sub = p.add_subparsers(dest="command")
 
-    snap = sub.add_parser("snap", help="Take a snapshot of a directory")
-    snap.add_argument("path", nargs="?", default=".", help="Directory to snapshot")
-    snap.add_argument("--dry-run", "-n", action="store_true")
-    snap.add_argument("--recursive", "-r", action="store_true")
+    snapshot = sub.add_parser("snapshot", add_help=False, help="Manage snapshots")
+    snapshot.add_argument("--help", "-h", action="store_true", help="Show snapshot commands")
+    snapshot.add_argument("--status", action="store_true", help="Show snapshot stats")
+    snapshot.add_argument("--list", "-l", action="store_true", help="List snapshots")
+    snapshot.add_argument("--all", "-a", action="store_true", help="Expand list scope")
 
-    diff = sub.add_parser("diff", help="Compare two snapshots")
-    diff.add_argument("a", help="First snapshot name")
-    diff.add_argument("b", help="Second snapshot name")
+    snap_sub = snapshot.add_subparsers(dest="snapshot_action")
 
-    sub.add_parser("status", help="Show current snapshot state")
-    sub.add_parser("log", help="List all snapshots")
+    create = snap_sub.add_parser("create", add_help=False, help="Take a new snapshot")
+    create.add_argument("--help", "-h", action="store_true", help="Show create options")
+    create.add_argument("--dry-run", "-n", action="store_true")
+    create.add_argument("--recursive", "-r", action="store_true")
 
-    restore = sub.add_parser("restore", help="Restore a snapshot")
-    restore.add_argument("name", help="Snapshot to restore")
-    restore.add_argument("--dry-run", "-n", action="store_true")
+    diff = snap_sub.add_parser("diff", add_help=False, help="Compare two snapshots")
+    diff.add_argument("--help", "-h", action="store_true", help="Show diff options")
+    diff.add_argument("--from", dest="from_snap")
+    diff.add_argument("--to", dest="to_snap")
 
     return p
 
@@ -44,38 +68,35 @@ def _build_parser() -> argparse.ArgumentParser:
 # ── Stream renderer ───────────────────────────────────────────────────────────
 
 
-async def _render(stream: StreamingResult, *, verbose: bool, quiet: bool) -> bool:
-    """Consume a StreamingResult and print each event's msg field.
-
-    Follows SCOP §4.2 severity rendering:
-        pri 0-3  → stderr          (errors)
-        pri 4    → stderr [WARN]   (warnings)
-        pri 5-6  → stdout          (normal)
-        pri 7    → suppressed      (debug, unless --verbose)
-    """
+async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool) -> bool:
+    """Consume a stream and emit SCOP NDJSON lines to stdout."""
     async for event in stream:
         pri = event.pri
-        msg = event.msg
-        msgid = event.msgid
+        raw_msgid = getattr(event, "msgid", "")
+        msgid_name = getattr(raw_msgid, "name", str(raw_msgid))
 
-        if msgid == MSGID.PAGE_END:
-            continue
         if pri == 7 and not verbose:
             continue
-        if quiet and msgid == MSGID.PROCESS_LOG:
+        if quiet and msgid_name.endswith("PROCESS_LOG"):
             continue
 
-        if pri <= 3:
-            print(msg, file=sys.stderr)
-        elif pri == 4:
-            print(f"[WARN] {msg}", file=sys.stderr)
-        else:
-            print(msg)
+        sys.stdout.write(f"{event.to_ndjson()}\n")
 
     result = stream.result
     if result is None:
         raise RuntimeError("stream completed without resolve() being called")
-    return result.ok
+    return bool(result.ok)
+
+
+def _resolve_command(args: dict) -> str:
+    command = args.pop("command")
+    if command != "snapshot":
+        return "" if command is None else str(command)
+
+    action = args.pop("snapshot_action", None)
+    if action is not None:
+        args["action"] = action
+    return "snapshot"
 
 
 # ── Entry points ──────────────────────────────────────────────────────────────
@@ -86,12 +107,12 @@ async def _main(argv: list[str] | None = None) -> int:
     ns = parser.parse_args(argv)
     args = vars(ns)
 
-    command: str | None = args.pop("command")
     verbose: bool = args.pop("verbose", False)
     quiet: bool = args.pop("quiet", False)
+    command = _resolve_command(args)
 
     dispatcher = AppDispatcher.default()
-    stream = dispatcher.dispatch("" if command is None else command, args)
+    stream = dispatcher.dispatch(command, args)
     ok = await _render(stream, verbose=verbose, quiet=quiet)
     return 0 if ok else 1
 

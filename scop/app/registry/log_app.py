@@ -7,15 +7,16 @@ from scop.ports.stream_port import StreamPort
 
 class LogApp(BaseApp):
     async def run(self, args: dict, stream: StreamPort) -> None:
+        room = args.get("_room")
         stream.emit(
             SyslogMessage(
                 pri=6,
                 msgid=MSGID.PAGE_BEGIN,
-                room="log",
+                room=room,
                 msg="=== Log ===",
                 data={"title": "Log", "subtitle": "List all snapshots"},
             )
         )
-        end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room="log", msg="")
+        end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=room, msg="")
         stream.emit(end)
         stream.resolve(ok=True, data=end)

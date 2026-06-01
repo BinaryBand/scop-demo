@@ -15,33 +15,23 @@ class AppDispatcher:
 
     @classmethod
     def default(cls) -> AppDispatcher:
-        from scop.app.registry.diff_app import DiffApp
-        from scop.app.registry.log_app import LogApp
-        from scop.app.registry.restore_app import RestoreApp
         from scop.app.registry.root_app import RootApp
         from scop.app.registry.snap_app import SnapApp
-        from scop.app.registry.status_app import StatusApp
 
         commands = {
-            "snap": ("SnapApp", "Take a snapshot of a directory"),
-            "diff": ("DiffApp", "Compare two snapshots"),
-            "status": ("StatusApp", "Show current snapshot state"),
-            "log": ("LogApp", "List all snapshots"),
-            "restore": ("RestoreApp", "Restore a snapshot"),
+            "snapshot": ("SnapApp", "Manage snapshots"),
         }
 
         registry: dict[str, BaseApp] = {
-            "snap": SnapApp(),
-            "diff": DiffApp(),
-            "status": StatusApp(),
-            "log": LogApp(),
-            "restore": RestoreApp(),
+            "snapshot": SnapApp(),
         }
         descriptions = {k: v[1] for k, v in commands.items()}
         return cls({"": RootApp(descriptions), **registry})
 
     def dispatch(self, command: str, args: dict) -> StreamingResult:
         app = self._resolve(command)
+        room = None if command == "" else command
+        args["_room"] = room
         stream = StreamingResult()
         task = asyncio.create_task(app.run(args, stream))
         self._tasks.add(task)

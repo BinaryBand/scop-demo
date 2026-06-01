@@ -20,7 +20,9 @@ _COMMANDS = [
 class SnapApp(BaseApp):
     async def run(self, args: dict, stream: StreamPort) -> None:
         action = args.get("action")
-        room = "snapshot/diff" if action == "diff" else "snapshot"
+        base_room_raw = args.get("_room")
+        base_room = base_room_raw if isinstance(base_room_raw, str) else "snapshot"
+        room = f"{base_room}/diff" if action == "diff" and base_room else base_room
         title = "Diff" if action == "diff" else "Snapshots"
         subtitle = "Compare snapshots" if action == "diff" else "Manage and compare snapshots"
 
