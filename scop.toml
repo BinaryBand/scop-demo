@@ -1,0 +1,154 @@
+[app]
+name = "scop"
+version = "0.1.0"
+description = "File and directory snapshotter"
+scop_version = "0.1.2"
+
+[[app.global_param]]
+name = "--verbose"
+kind = "flag"
+short = "-v"
+type = "boolean"
+required = false
+
+[[app.global_param]]
+name = "--quiet"
+kind = "flag"
+short = "-q"
+type = "boolean"
+required = false
+
+[[app.global_param]]
+name = "--output"
+kind = "flag"
+short = "-o"
+type = "string"
+metavar = "FILE"
+required = false
+
+[[room]]
+id = ""
+title = "scop"
+subtitle = "Structured CLI Output Protocol"
+
+[[room.command]]
+name = "Snapshot"
+exec = "snapshot"
+description = "Manage snapshots"
+kind = "group"
+navigates = "snapshot"
+
+[[room]]
+id = "snapshot"
+title = "Snapshots"
+subtitle = "Manage and compare snapshots"
+
+[[room.stat]]
+id = "last_snap"
+label = "Last snapshot"
+type = "string"
+
+[[room.stat]]
+id = "tracked"
+label = "Tracked files"
+type = "number"
+
+[[room.stat]]
+id = "changed"
+label = "Changed since last snap"
+type = "number"
+
+[room.list]
+schema = ["name", "files", "size", "date"]
+
+[[room.command]]
+name = "Create"
+exec = "snapshot create"
+description = "Take a new snapshot"
+kind = "action"
+
+[[room.command.param]]
+name = "--dry-run"
+kind = "flag"
+short = "-n"
+type = "boolean"
+required = false
+
+[[room.command.param]]
+name = "--recursive"
+kind = "flag"
+short = "-r"
+type = "boolean"
+required = false
+
+[[room.command.param]]
+name = "--force"
+kind = "flag"
+short = "-f"
+type = "boolean"
+required = false
+
+[[room.command]]
+name = "Diff"
+exec = "snapshot diff"
+description = "Compare two snapshots"
+kind = "action"
+navigates = "snapshot/diff"
+
+[[room.command.param]]
+name = "--from"
+kind = "flag"
+type = "string"
+metavar = "SNAPSHOT_ID"
+required = true
+
+[[room.command.param]]
+name = "--to"
+kind = "flag"
+type = "string"
+metavar = "SNAPSHOT_ID"
+required = true
+
+[[room.command]]
+name = "List"
+exec = "snapshot --list"
+description = "List all snapshots"
+kind = "action"
+
+[[room.command.param]]
+name = "--all"
+kind = "flag"
+short = "-a"
+type = "boolean"
+required = false
+
+[[room.command]]
+name = "Status"
+exec = "snapshot --status"
+description = "Show snapshot stats"
+kind = "action"
+
+[[room]]
+id = "snapshot/diff"
+title = "Diff"
+subtitle = "Compare snapshots"
+
+[[room.command]]
+name = "Diff"
+exec = "snapshot diff"
+description = "Compare two snapshots"
+kind = "action"
+
+[[room.command.param]]
+name = "--from"
+kind = "flag"
+type = "string"
+metavar = "SNAPSHOT_ID"
+required = true
+
+[[room.command.param]]
+name = "--to"
+kind = "flag"
+type = "string"
+metavar = "SNAPSHOT_ID"
+required = true
