@@ -3,7 +3,7 @@
 **Version:** 0.1.1-draft  
 **Status:** Draft Specification  
 **License:** CC0 1.0 Universal (Public Domain)  
-**Companion to:** SCOP v0.1.0-draft
+**Companion to:** SCOP v0.1.1-draft
 
 ---
 
@@ -50,7 +50,8 @@ A SCOP-M file is OPTIONAL. A producer that does not supply one is still SCOP-con
 **Command** — an action available within a room; maps to a CLI subcommand or flag combination.  
 **Param** — a typed, named input accepted by a command.  
 **Stat** — a named scalar value emitted by `--status`; maps to a `SCALAR_SET` event.  
-**List schema** — the column definition for `--list` output; maps to `TABLE_DECLARE.schema`.
+**List schema** — the column definition for `--list` output; maps to `TABLE_DECLARE.schema`.  
+**Global param** — a param inherited by every command in every room.
 
 ---
 
@@ -75,6 +76,23 @@ version = "0.1.0"
 ```
 
 The standalone form is used throughout this specification.
+
+> **TOML ordering rule:** TOML attaches key-value pairs to the most recently declared
+> array-of-tables header. All keys for a `[[room.command]]` MUST be declared before
+> any nested `[[room.command.param]]` blocks. Keys written after a nested block are
+> silently attached to that block, not to the parent command.
+>
+> ```toml
+> [[room.command]]
+> name        = "diff"   # ✓ declared before params
+> description = "Compare two snapshots"
+>
+>   [[room.command.param]]
+>   name = "a"
+>   type = "string"
+>
+> # timeout = 30  ← WRONG: attached to param "a", not the command
+> ```
 
 ---
 
@@ -101,9 +119,40 @@ scop_version = "0.1.0"
 
 ---
 
-### 4.2 `[[room]]` — Page definition
+### 4.2 `[[app.global_param]]` — Global parameter
 
-OPTIONAL array. Each entry defines one room. The root room has `id = ""`.
+OPTIONAL array within `[app]`. Params defined here are implicitly inherited by every command in every room. Identical to `[[room.command.param]]` in structure (§4.7). Use for universal flags such as `--verbose`, `--quiet`, and `--dry-run` to avoid repetition.
+
+A command-level `[[room.command.param]]` with the same `name` as a global param overrides the global definition for that command only.
+
+```toml
+[[app.global_param]]
+name     = "--verbose"
+short    = "-v"
+kind     = "flag"
+type     = "boolean"
+required = false
+
+[[app.global_param]]
+name     = "--quiet"
+short    = "-q"
+kind     = "flag"
+type     = "boolean"
+required = false
+
+[[app.global_param]]
+name     = "--dry-run"
+short    = "-n"
+kind     = "flag"
+type     = "boolean"
+required = false
+```
+
+---
+
+### 4.3 `[[room]]` — Page definition
+
+OPTIONAL array. Each entry defines one room. The root room has `id = ""`. Room `id` values MUST match the string produced by SCOP §6 room derivation — i.e. the subcommand tokens that invoke the room, joined by `"/"`.
 
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -120,7 +169,7 @@ subtitle = "File and directory snapshotter"
 icon     = ":package:"
 
 [[room]]
-id       = "snapshot"
+id       = "snap"
 title    = "Snapshots"
 subtitle = "Manage and compare snapshots"
 icon     = ":camera_with_flash:"
@@ -128,7 +177,7 @@ icon     = ":camera_with_flash:"
 
 ---
 
-### 4.3 `[[room.stat]]` — Status output schema
+### 4.4 `[[room.stat]]` — Status output schema
 
 OPTIONAL array within a `[[room]]`. Declares the `SCALAR_SET` events emitted by `--status` for this room.
 
@@ -141,7 +190,7 @@ OPTIONAL array within a `[[room]]`. Declares the `SCALAR_SET` events emitted by 
 
 ```toml
 [[room]]
-id = "snapshot"
+id = "snap"
 
   [[room.stat]]
   id    = "tracked"
@@ -157,7 +206,7 @@ id = "snapshot"
 
 ---
 
-### 4.4 `[room.list]` — List output schema
+### 4.5 `[room.list]` — List output schema
 
 OPTIONAL table within a `[[room]]`. Declares the `TABLE_DECLARE.schema` emitted by `--list` for this room.
 
@@ -168,7 +217,7 @@ OPTIONAL table within a `[[room]]`. Declares the `TABLE_DECLARE.schema` emitted 
 
 ```toml
 [[room]]
-id = "snapshot"
+id = "snap"
 
   [room.list]
   schema       = ["name", "files", "size", "date"]
@@ -177,46 +226,56 @@ id = "snapshot"
 
 ---
 
-### 4.5 `[[room.command]]` — Command definition
+### 4.6 `[[room.command]]` — Command definition
 
 OPTIONAL array within a `[[room]]`. Each entry declares one available command.
 
+The `name` field is the display label shown in the GUI. The `exec` field is the CLI token actually invoked. When `name` and `exec` differ — or when a display label contains spaces or mixed case — `exec` MUST be provided. This decouples the GUI label from the CLI invocation and prevents the room routing collision described in §3.
+
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | ✓ | CLI token (e.g. `"snap"`, `"--list"`) |
+| `name` | string | ✓ | Display label shown in GUI and `--help` output |
+| `exec` | string | | CLI token to invoke. Defaults to `name` if omitted. MUST be provided when `name` differs from the CLI token |
 | `description` | string | ✓ | Maps to `LIST_APPEND.value.description` in `--help` output |
-| `navigates` | string | | Room `id` this command navigates to. Omit if it stays in the current room |
+| `navigates` | string | | Room `id` this command navigates to after execution. MUST match SCOP §6 room derivation. Omit if the command stays in the current room |
+
+> **Routing rule:** `navigates` MUST equal the room `id` that SCOP will derive at runtime from the invocation. For `ourapp snap [args]`, SCOP derives room `"snap"`, so `navigates = "snap"`. Setting `navigates` to an undeclared room `id` is a conformance violation.
 
 ```toml
 [[room]]
 id = ""
 
   [[room.command]]
-  name        = "snap"
+  name        = "Snapshot"
+  exec        = "snap"
   description = "Take a snapshot of a directory"
-  navigates   = "snapshot"
+  navigates   = "snap"
 
   [[room.command]]
-  name        = "diff"
+  name        = "Diff"
+  exec        = "diff"
   description = "Compare two snapshots"
-  navigates   = "snapshot"
+  navigates   = "diff"
 ```
 
 ---
 
-### 4.6 `[[room.command.param]]` — Parameter definition
+### 4.7 `[[room.command.param]]` — Parameter definition
 
-OPTIONAL array within a `[[room.command]]`. Each entry declares one typed input.
+OPTIONAL array within a `[[room.command]]`. Each entry declares one typed input. All keys MUST be declared before any nested blocks (see §3 TOML ordering rule).
+
+The `kind` field MUST be provided. Inferring parameter kind from the presence of a leading hyphen is fragile and not supported — non-standard single-dash long flags and symbol-prefixed positionals cannot be inferred reliably.
 
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | string | ✓ | Flag name (e.g. `"--path"`) or positional name (e.g. `"target"`) |
+| `name` | string | ✓ | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`) |
+| `kind` | string | ✓ | `"flag"` or `"positional"`. Determines CLI assembly syntax |
 | `type` | string | ✓ | One of the types defined in §5 |
-| `short` | string | | Single-character short flag (e.g. `"-p"`) |
-| `description` | string | | Human-readable description of this parameter |
-| `required` | boolean | | Default: `false` for flags, `true` for positional args |
+| `short` | string | | Single-character short flag (e.g. `"-p"`). Valid for `kind = "flag"` only |
+| `description` | string | | Human-readable description |
+| `required` | boolean | | Default: `false` for `"flag"`, `true` for `"positional"` |
 | `default` | any | | Default value; type must match `type` |
-| `pattern` | string | | Regex validation string. Valid for `string` and `path` types |
+| `pattern` | string | | Regex validation. Valid for `string` and `path` types |
 | `choices` | string[] | | Valid values. Required when `type = "choice"` |
 | `min` | number | | Minimum value. Valid for `number` type |
 | `max` | number | | Maximum value. Valid for `number` type |
@@ -226,14 +285,16 @@ OPTIONAL array within a `[[room.command]]`. Each entry declares one typed input.
 
 ```toml
 [[room]]
-id = "snapshot"
+id = "snap"
 
   [[room.command]]
-  name        = "snap"
+  name        = "New Snapshot"
+  exec        = "snap"
   description = "Take a new snapshot"
 
     [[room.command.param]]
     name     = "--path"
+    kind     = "flag"
     short    = "-p"
     type     = "path"
     pattern  = "^/[^\\0]*$"
@@ -242,29 +303,18 @@ id = "snapshot"
 
     [[room.command.param]]
     name     = "--date"
+    kind     = "flag"
     short    = "-d"
     type     = "datetime"
-    format   = "ISO 8601"
     required = false
 
     [[room.command.param]]
     name     = "--format"
+    kind     = "flag"
     type     = "choice"
     choices  = ["json", "tar", "zip"]
     required = false
     default  = "json"
-
-    [[room.command.param]]
-    name     = "--dry-run"
-    short    = "-n"
-    type     = "boolean"
-    required = false
-
-    [[room.command.param]]
-    name     = "--recursive"
-    short    = "-r"
-    type     = "boolean"
-    required = false
 ```
 
 ---
@@ -273,16 +323,18 @@ id = "snapshot"
 
 The following types are built-in. Producers MUST use one of these values for `param.type` and `stat.type`.
 
-| Type | GUI widget hint | Validation fields | JSON serialization |
-| --- | --- | --- | --- |
-| `string` | text input | `pattern`, `min_length`, `max_length` | JSON string |
-| `number` | numeric input | `min`, `max` | JSON number |
-| `boolean` | checkbox / toggle | — | JSON boolean |
-| `path` | file / dir picker | `pattern` | JSON string |
-| `datetime` | date-time picker | `format`, `min`, `max` | JSON string (ISO 8601) |
-| `duration` | duration input | `format` | JSON string (ISO 8601, e.g. `"PT1M30S"`) |
-| `bytes` | file size display | — | JSON integer (absolute byte count) |
-| `choice` | select / dropdown | `choices` | JSON string; MUST be a member of `choices` |
+The **SCOP wire type** column shows the `SCALAR_SET.type` value emitted at runtime. Types that are manifest-level annotations over `string` (e.g. `path`, `datetime`, `choice`) are transmitted as `string` on the wire; the manifest type is metadata for input validation and GUI widget selection only.
+
+| Type | GUI widget hint | Validation fields | JSON serialization | SCOP wire type |
+| --- | --- | --- | --- | --- |
+| `string` | text input | `pattern`, `min_length`, `max_length` | JSON string | `string` |
+| `number` | numeric input | `min`, `max` | JSON number | `number` |
+| `boolean` | checkbox / toggle | — | JSON boolean | `boolean` |
+| `path` | file / dir picker | `pattern` | JSON string | `string` |
+| `datetime` | date-time picker | `format`, `min`, `max` | JSON string (ISO 8601) | `string` |
+| `duration` | duration input | `format` | JSON string (ISO 8601, e.g. `"PT1M30S"`) | `duration` |
+| `bytes` | file size display | — | JSON integer (absolute byte count) | `bytes` |
+| `choice` | select / dropdown | `choices` | JSON string; MUST be a member of `choices` | `string` |
 
 ---
 
@@ -295,8 +347,9 @@ A SCOP-M manifest MUST be semantically equivalent to the runtime discovery outpu
 | `room.title`, `room.subtitle`, `room.icon` | `PAGE_BEGIN` fields for that room |
 | `room.stat.*` | `SCALAR_SET` events emitted by `ourapp [room] --status` |
 | `room.list.schema` | `TABLE_DECLARE.schema` emitted by `ourapp [room] --list` |
-| `room.command.name`, `.description` | `LIST_APPEND.value` fields in `ourapp [room] --help` |
+| `room.command.exec`, `.description` | `LIST_APPEND.value` fields in `ourapp [room] --help` |
 | `room.command.param.*` | `LIST_APPEND.value.params` entries (SCOP §8.1 extension) |
+| `app.global_param.*` | Inherited `params` entries on every command |
 
 A conformance test tool MAY verify equivalence by running the CLI and diffing its `--help` / `--status` / `--list` output against the manifest.
 
@@ -311,6 +364,28 @@ version      = "0.1.0"
 description  = "File and directory snapshotter"
 scop_version = "0.1.0"
 
+# ── Global params — inherited by every command ───────────────────────────────
+[[app.global_param]]
+name     = "--verbose"
+kind     = "flag"
+short    = "-v"
+type     = "boolean"
+required = false
+
+[[app.global_param]]
+name     = "--quiet"
+kind     = "flag"
+short    = "-q"
+type     = "boolean"
+required = false
+
+[[app.global_param]]
+name     = "--dry-run"
+kind     = "flag"
+short    = "-n"
+type     = "boolean"
+required = false
+
 # ── Root room ────────────────────────────────────────────────────────────────
 [[room]]
 id       = ""
@@ -319,33 +394,32 @@ subtitle = "File and directory snapshotter"
 icon     = ":package:"
 
   [[room.command]]
-  name        = "snap"
+  name        = "Snapshot"
+  exec        = "snap"
   description = "Take a snapshot of a directory"
-  navigates   = "snapshot"
+  navigates   = "snap"
 
   [[room.command]]
-  name        = "diff"
+  name        = "Diff"
+  exec        = "diff"
   description = "Compare two snapshots"
-  navigates   = "snapshot"
+  navigates   = "diff"
 
   [[room.command]]
-  name        = "status"
-  description = "Show current snapshot state"
-  navigates   = "snapshot"
-
-  [[room.command]]
-  name        = "log"
-  description = "List all snapshots"
-  navigates   = "snapshot"
-
-  [[room.command]]
-  name        = "restore"
+  name        = "Restore"
+  exec        = "restore"
   description = "Restore a snapshot"
-  navigates   = "snapshot"
+  navigates   = "restore"
 
-# ── Snapshot room ────────────────────────────────────────────────────────────
+  [[room.command]]
+  name        = "Log"
+  exec        = "log"
+  description = "List all snapshots"
+  navigates   = "log"
+
+# ── Snap room ────────────────────────────────────────────────────────────────
 [[room]]
-id       = "snapshot"
+id       = "snap"
 title    = "Snapshots"
 subtitle = "Manage and compare snapshots"
 icon     = ":camera_with_flash:"
@@ -371,11 +445,13 @@ icon     = ":camera_with_flash:"
   schema = ["name", "files", "size", "date"]
 
   [[room.command]]
-  name        = "snap"
+  name        = "New Snapshot"
+  exec        = "snap"
   description = "Take a new snapshot"
 
     [[room.command.param]]
     name     = "--path"
+    kind     = "flag"
     short    = "-p"
     type     = "path"
     pattern  = "^/[^\\0]*$"
@@ -384,59 +460,69 @@ icon     = ":camera_with_flash:"
 
     [[room.command.param]]
     name     = "--date"
+    kind     = "flag"
     short    = "-d"
     type     = "datetime"
     required = false
 
     [[room.command.param]]
     name     = "--format"
+    kind     = "flag"
     type     = "choice"
     choices  = ["json", "tar", "zip"]
     required = false
     default  = "json"
 
     [[room.command.param]]
-    name     = "--dry-run"
-    short    = "-n"
-    type     = "boolean"
-    required = false
-
-    [[room.command.param]]
     name     = "--recursive"
+    kind     = "flag"
     short    = "-r"
     type     = "boolean"
     required = false
 
+# ── Diff room ────────────────────────────────────────────────────────────────
+[[room]]
+id       = "diff"
+title    = "Diff"
+subtitle = "Compare two snapshots"
+icon     = ":left_right_arrow:"
+
   [[room.command]]
-  name        = "diff"
+  name        = "Compare"
+  exec        = "diff"
   description = "Compare two snapshots"
 
     [[room.command.param]]
     name        = "a"
+    kind        = "positional"
     type        = "string"
     required    = true
     description = "First snapshot name"
 
     [[room.command.param]]
     name        = "b"
+    kind        = "positional"
     type        = "string"
     required    = true
     description = "Second snapshot name"
 
+# ── Restore room ─────────────────────────────────────────────────────────────
+[[room]]
+id       = "restore"
+title    = "Restore"
+subtitle = "Restore a snapshot to disk"
+icon     = ":floppy_disk:"
+
   [[room.command]]
-  name        = "restore"
+  name        = "Restore Snapshot"
+  exec        = "restore"
   description = "Restore a snapshot"
 
     [[room.command.param]]
     name     = "name"
+    kind     = "positional"
     type     = "string"
     required = true
-
-    [[room.command.param]]
-    name     = "--dry-run"
-    short    = "-n"
-    type     = "boolean"
-    required = false
 ```
 
 ---
@@ -451,14 +537,17 @@ icon     = ":camera_with_flash:"
 4. Provide `choices` when `type = "choice"`
 5. Use GitHub gemoji codes (`:name:`) for all `icon` fields
 6. Use room `id` values consistent with SCOP §6 room derivation
+7. Provide `kind` on every `[[room.command.param]]`
+8. Provide `exec` when `name` differs from the CLI token
 
 **A conforming manifest SHOULD:**
 
-7. Include a `[[room]]` entry for every room the application emits events in
-8. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
-9. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
-10. Include `params` on every `[[room.command]]` that accepts arguments
-11. Be kept semantically equivalent to runtime `--help` / `--status` / `--list` output (§6)
+9. Include a `[[room]]` entry for every room the application emits events in
+10. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
+11. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
+12. Include `params` on every `[[room.command]]` that accepts arguments
+13. Declare universal flags in `[[app.global_param]]` rather than repeating them per command
+14. Be kept semantically equivalent to runtime `--help` / `--status` / `--list` output (§6)
 
 ---
 
@@ -466,7 +555,7 @@ icon     = ":camera_with_flash:"
 
 ### Normative
 
-- **SCOP v0.1.0-draft** — Structured CLI Output Protocol
+- **SCOP v0.1.1-draft** — Structured CLI Output Protocol
 - **TOML v1.0** — toml.io
 - **RFC 2119** — Key words for use in RFCs. Bradner, S. (1997).
 - **GitHub gemoji** — github.com/github/gemoji

@@ -1,6 +1,6 @@
 # Structured CLI Output Protocol (SCOP)
 
-**Version:** 0.1.1-draft  
+**Version:** 0.1.0-draft  
 **Status:** Draft Specification  
 **License:** CC0 1.0 Universal (Public Domain)
 
@@ -126,7 +126,7 @@ Every event MUST contain `pri`, `msgid`, `room`, and `msg`. The `msg` field MUST
 
 A **room** is derived mechanically from the subcommand path — it is never declared explicitly.
 
-**Derivation rule:** `room = subcommand tokens joined by "/"`, excluding all flag tokens. Root room = `null`.
+**Derivation rule:** `room = subcommand tokens joined by "/"`, excluding all flag tokens (`-f`, `--flag`) and all positional operand values. Only the structural subcommand path tokens are included — not the runtime values passed to those subcommands. Root room = `null`.
 
 | Invocation | Room |
 | --- | --- |
@@ -134,8 +134,9 @@ A **room** is derived mechanically from the subcommand path — it is never decl
 | `ourapp snapshot` | `"snapshot"` |
 | `ourapp snapshot diff` | `"snapshot/diff"` |
 | `ourapp snapshot --list` | `"snapshot"` |
+| `ourapp snapshot diff snap-001 snap-002` | `"snapshot/diff"` |
 
-Room strings MUST be stable across versions. Changing a room string is a breaking change.
+The last example shows that positional operand values (`snap-001`, `snap-002`) are excluded. Room strings MUST be stable across versions. Changing a room string is a breaking change.
 
 ---
 
@@ -197,8 +198,10 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 
 | MSGID | Required | Optional |
 | --- | --- | --- |
-| `SCALAR_SET` | `id`, `label`, `value`, `type` | `unit` |
+| `SCALAR_SET` | `id`, `label`, `value`, `type` | `unit`, `display_hint` |
 | `SCALAR_CLEAR` | `id` | |
+
+`display_hint` is OPTIONAL and advisory; consumers MAY ignore it. Defined values: `"badge"`. Producers MUST NOT use `display_hint` values not defined in this spec.
 
 ```json
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "tracked", "label": "Tracked files", "value": 1042, "type": "number", "unit": "files", "msg": "Tracked files: 1042 files"}
@@ -277,6 +280,7 @@ Each `LIST_APPEND.value` MAY include a `params` array describing the command's a
    ]
  },
  "msg": "  snap    Take a new snapshot"}
+```
 
 **`--version`**
 
@@ -310,7 +314,7 @@ Mode flags adjust which events are emitted. They produce no events of their own.
 
 | Flag | Effect |
 | --- | --- |
-| `--quiet` / `-q` | MUST suppress `PROCESS_LOG` and `pri ≥ 5` |
+| `--quiet` / `-q` | MUST suppress `PROCESS_LOG` and `PROCESS_UPDATE`. MUST NOT suppress `PAGE_BEGIN`, `PAGE_END`, `PROCESS_BEGIN`, `PROCESS_END`, `SCALAR_SET`, `LIST_*`, `TABLE_*`, or any event with `pri ≤ 4`. |
 | `--verbose` / `-v` | MUST include `pri = 7` events |
 | `--all` / `-a` | MUST expand scope of `LIST` and `TABLE` output |
 
@@ -328,7 +332,7 @@ Modifier flags annotate `PROCESS_*` events with additional fields. No new MSGIDs
 
 ## 9. Page Template
 
-Any room can be fully described by three flag calls. A consumer that makes all three has everything needed to render a complete page without app-specific code.
+A room that implements all three query flags can be fully described by those calls. A consumer that makes all three has everything needed to render a complete page without app-specific code.
 
 ```text
 ourapp [subcommand] --status   →  page chrome + stats
@@ -355,12 +359,12 @@ Each call is independent. A page MAY be built from a subset.
 | Description | `SCALAR_SET` with `id="page.description"` |
 | Chart | `TABLE_DECLARE` with `display_hint: "chart"` |
 | Empty state | `SCALAR_SET` with `id="page.empty"` |
-| Badge | `SCALAR_SET` with `type: "badge"` |
+| Badge | `SCALAR_SET` with `display_hint: "badge"` |
 
 **Full page manifest example** (`ourapp snapshot`):
 
 ```json
-{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "msg": "=== Snapshots ==="}
+{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "intent": "query", "msg": "=== Snapshots ==="}
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "tracked", "label": "Tracked files", "value": 1042, "type": "number", "msg": "Tracked files: 1042"}
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "last_snap", "label": "Last snapshot", "value": "2026-05-30T14:32:00Z", "type": "string", "msg": "Last snapshot: 2026-05-30T14:32:00Z"}
 {"pri": 6, "msgid": "TABLE_DECLARE", "room": "snapshot", "id": "snaps", "label": "Snapshots", "schema": ["name", "files", "size", "date"], "msg": "Snapshots"}
@@ -395,14 +399,16 @@ A conforming consumer routes events using this table. No application knowledge i
 
 | MSGID / condition | Slot | Notes |
 | --- | --- | --- |
-| `PAGE_BEGIN` where `intent: "query"` | open / replace page | sets all slots; replaces current content |
+| `PAGE_BEGIN` where `intent: "query"`, same room | update page | merge slot content; existing slots not covered by this stream persist |
+| `PAGE_BEGIN` where `intent: "query"`, different room | replace page | navigate to new room; all slots replaced |
 | `PAGE_BEGIN` where `intent: "action"` | open activity overlay | activity slot only; all other slots unchanged |
 | `SCALAR_SET` | stats area | stat card |
 | `TABLE_*` | content area | table, grid, or chart |
 | `LIST_*` where `id="help"` | actions area | buttons or command palette |
 | `LIST_*` otherwise | content area | list |
 | `PROCESS_*` | activity indicator | progress bar or spinner |
-| `PAGE_END` | close page / overlay | finalise layout |
+| `PAGE_END` where `intent: "query"` | end of stream | slot update complete; page remains visible |
+| `PAGE_END` where `intent: "action"` | end of stream | close activity overlay |
 | `pri` 0–3 | error modal | blocking |
 | `pri` 4 | warning banner | non-blocking |
 | `pri` 5–6 | log area | append |
@@ -416,9 +422,9 @@ Consumers MUST maintain independent slot state per `id` for `PROCESS_*` events. 
 
 ## 11. Conformance
 
-**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help` and `--version` per §8.1; include `intent` on every `PAGE_BEGIN` — `"query"` for discovery flag streams (`--help`, `--status`, `--list`), `"action"` for command execution streams.
+**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help`, `--version`, `--status`, and `--list` per §8.1. If a room has no data for `--status` or `--list`, the producer MUST emit a well-formed empty page (`PAGE_BEGIN` + `SCALAR_SET` with `id="page.empty"` + `PAGE_END`) rather than exiting with a non-zero status.
 
-**Producer SHOULD:** implement `--status`, `--list` (§8.1); implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3); design rooms such that `--status` and `--list` are invocable without positional arguments. If a room's query flags are called with missing required parameters, the producer MUST emit a well-formed empty page — `PAGE_BEGIN` + `SCALAR_SET` with `id="page.empty"` + `PAGE_END` — rather than exiting with a non-zero status. Rooms SHOULD NOT encode runtime entity identifiers in their room path; entity context is a runtime parameter, not a room identifier.
+**Producer SHOULD:** implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3); include `intent` on every `PAGE_BEGIN` — `"query"` for discovery flag streams (`--help`, `--status`, `--list`), `"action"` for command execution streams; design rooms such that `--status` and `--list` are invocable without positional arguments. Rooms SHOULD NOT encode runtime entity identifiers in their room path; entity context is a runtime parameter, not a room identifier.
 
 **Consumer MUST:** parse NDJSON line-by-line; route events per §10 using the `intent` field on `PAGE_BEGIN`; render `msg` as fallback for unknown MSGIDs; ignore unknown MSGIDs and fields without error; map RFC 5424 severity per §4.2; if stdout closes or the process exits before `PAGE_END` is received, synthesise a terminal error state using any partial content and severity already received — a consumer MUST NOT remain in an indeterminate loading state.
 
@@ -450,7 +456,7 @@ Consumers MUST maintain independent slot state per `id` for `PROCESS_*` events. 
 
 ### Informative
 
-- **SCOP-M v0.1.0-draft** — SCOP Manifest Format (companion specification)
+- **SCOP-M v0.1.1-draft** — SCOP Manifest Format (companion specification)
 - **LSP `$/progress`** — Language Server Protocol §3.16.1. Microsoft (2021).
 - **Adaptive Cards** — adaptivecards.io
 - **CloudEvents** — CNCF CloudEvents v1.0.2. cloudevents.io
