@@ -4,9 +4,10 @@ import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator
 
 from scop.models.protocol import ResolvedResult, SyslogMessage
+from scop.ports.stream_port import StreamPort
 
 
-class StreamingResult:
+class StreamingResult(StreamPort):
     """Async event channel created by AppDispatcher and passed down to services."""
 
     def __init__(self) -> None:
