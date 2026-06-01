@@ -108,10 +108,10 @@ select = [
     "ARG",  # unused arguments
     "FA",   # require from __future__ import annotations
     "DTZ",  # datetime timezone awareness
-    # D     (docstrings)
-    # FBT   (boolean trap)
-    # EM    (exception messages)
-    # PL    (pylint full set)
+    # D     (docstrings)     — high noise on new projects; add when stable
+    # FBT   (boolean trap)   — add without FBT003 when API surface is settled
+    # EM    (exception messages) — prescriptive; low entropy gain
+    # PL    (pylint full set) — too broad; conflicts with existing rules
     # TCH   (TYPE_CHECKING)  — deliberately omitted; TYPE_CHECKING is banned (Rule 12)
 ]
 
@@ -159,22 +159,23 @@ The standard library is universally permitted in every layer without restriction
 
 ### `utils/` submodule allowlist
 
-Each submodule is restricted to the third-party packages listed. Importing a listed package from the wrong submodule is a violation — even if the package itself is permitted somewhere else.
+`utils/` is the **mechanism layer** — thin, stateless wrappers over the OS and stdlib with no domain meaning and no port implementations. Only `adapters/` may import from `utils/`. Each permitted name MAY exist as either `name.py` or `name/`; no other modules or packages at the `utils/` root are permitted. **Bold** imports are third-party.
 
-| Submodule | Permitted third-party | Key stdlib |
-| --- | --- | --- |
-| `fs` | none | `pathlib`, `shutil`, `os`, `glob` |
-| `proc` | none | `subprocess`, `shutil`, `os` |
-| `net` | `httpx` | `urllib`, `http`, `socket` |
-| `fmt` | `pyyaml`, `tomli` | `json`, `csv`, `base64`, `tomllib` |
-| `text` | none | `re`, `textwrap`, `difflib`, `unicodedata` |
-| `env` | none | `os`, `sys`, `platform` |
-| `time` | none | `datetime`, `time`, `zoneinfo` |
-| `hash` | none | `hashlib`, `hmac` |
-| `crypto` | `cryptography` | `secrets` |
-| `archive` | none | `zipfile`, `tarfile`, `gzip`, `bz2`, `lzma` |
-| `concurrent` | none | `asyncio`, `threading`, `concurrent.futures`, `queue` |
-| `collect` | none | `itertools`, `functools`, `collections` |
+| Name | What it holds | Hard boundary | Imports |
+| --- | --- | --- | --- |
+| `fs` | Read, write, copy, move, delete, mkdir, glob, stat | Single-file and directory ops only — not archives | `pathlib`, `shutil`, `os`, `glob` |
+| `proc` | Spawn, capture stdout/stderr, pipe, timeout, kill | External processes only — not internal concurrency | `subprocess`, `shutil`, `os` |
+| `net` | HTTP requests, download, socket connect, DNS | Network I/O only — not serializing the payload | `urllib`, `http`, `socket`, **`httpx`** |
+| `fmt` | Encode/decode structured formats — JSON, TOML, YAML, CSV, base64 | Structured data only — not free-form string manipulation | `json`, `csv`, `base64`, `tomllib`, **`pyyaml`**, **`tomli`** |
+| `text` | Regex, templates, truncate, wrap, diff, split, normalize | Unstructured strings only — not structured formats | `re`, `textwrap`, `difflib`, `unicodedata` |
+| `code` | Python AST parsing, inspection, transformation | Python source analysis only — not general text or serialisation | `ast`, `inspect`, `dis`, `tokenize` |
+| `env` | Env vars, platform/OS detection, Python interpreter path, cwd | Runtime context only — not logging or timing | `os`, `sys`, `platform` |
+| `time` | Timestamps, durations, date formatting, monotonic clock | Temporal values only — not blocking waits (→ `concurrent`) or scheduling | `datetime`, `time`, `zoneinfo` |
+| `hash` | MD5/SHA checksums, content fingerprinting | Integrity primitives only — not keyed operations (HMAC → `crypto`) | `hashlib`, `hmac` |
+| `crypto` | Encrypt/decrypt, key derivation, HMAC, secure random tokens | Secrets only — not plain checksums | `secrets`, **`cryptography`** |
+| `archive` | Zip/tar/gzip pack and unpack | Compressed bundles only — not plain file copies | `zipfile`, `tarfile`, `gzip`, `bz2`, `lzma` |
+| `concurrent` | Thread pool, async helpers, locks, queues, semaphores, sleep | Internal threads/tasks only — not external processes | `asyncio`, `threading`, `concurrent.futures`, `queue` |
+| `collect` | Merge dicts, chunk lists, group-by, flatten, deduplicate | In-memory data structure ops only — not I/O | `itertools`, `functools`, `collections` |
 
 **Enforcement pattern:** ban the package globally via `TID251`, then carve out the one permitted submodule with `per-file-ignores`:
 
@@ -344,24 +345,3 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
 > Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_CONTRACT.md`.
-
-## Utils
-
-`utils/` is the **mechanism layer** — thin, stateless wrappers over the OS and stdlib with no domain meaning and no port implementations. Only `adapters/` may import from `utils/`.
-
-Each permitted name MAY exist as either `name.py` or `name/`; no other modules or packages at the `utils/` root are permitted.
-
-| Name | What it holds | Hard boundary |
-| --- | --- | --- |
-| `fs` | Read, write, copy, move, delete, mkdir, glob, stat | Single-file and directory ops only — not archives |
-| `proc` | Spawn, capture stdout/stderr, pipe, timeout, kill | External processes only — not internal concurrency |
-| `net` | HTTP requests, download, socket connect, DNS | Network I/O only — not serializing the payload |
-| `fmt` | Encode/decode structured formats — JSON, TOML, YAML, CSV, base64 | Structured data only — not free-form string manipulation |
-| `text` | Regex, templates, truncate, wrap, diff, split, normalize | Unstructured strings only — not structured formats |
-| `env` | Env vars, platform/OS detection, Python interpreter path, cwd | Runtime context only — not logging or timing |
-| `time` | Timestamps, durations, date formatting, monotonic clock | Temporal values only — not blocking waits (→ `concurrent`) or scheduling |
-| `hash` | MD5/SHA checksums, content fingerprinting | Integrity primitives only — not keyed operations (HMAC → `crypto`) |
-| `crypto` | Encrypt/decrypt, key derivation, HMAC, secure random tokens | Secrets only — not plain checksums |
-| `archive` | Zip/tar/gzip pack and unpack | Compressed bundles only — not plain file copies |
-| `concurrent` | Thread pool, async helpers, locks, queues, semaphores, sleep | Internal threads/tasks only — not external processes |
-| `collect` | Merge dicts, chunk lists, group-by, flatten, deduplicate | In-memory data structure ops only — not I/O |

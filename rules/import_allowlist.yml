@@ -34,6 +34,8 @@ ignores:
   - "scop/utils/fmt/**/*.py"
   - "scop/utils/crypto.py"
   - "scop/utils/crypto/**/*.py"
+  - "scop/utils/code.py"
+  - "scop/utils/code/**/*.py"
 
 ---
 # utils/concurrent: stdlib + asyncio-family runtime primitives
@@ -153,3 +155,27 @@ constraints:
 files:
   - "scop/utils/crypto.py"
   - "scop/utils/crypto/**/*.py"
+
+---
+# utils/code: stdlib + Python AST/introspection tooling
+id: import-allowlist-utils-code
+language: python
+severity: error
+message: >
+  In utils/code, external import '$MOD' is outside the code allowlist.
+  Allowed here: stdlib, scop.*, and Python code-analysis modules.
+rule:
+  any:
+    - all:
+        - pattern: "import $MOD"
+    - all:
+        - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    all:
+      - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+      - not:
+          regex: "^(?:__future__|abc|argparse|ast|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|dis|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|inspect|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tokenize|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
+files:
+  - "scop/utils/code.py"
+  - "scop/utils/code/**/*.py"
