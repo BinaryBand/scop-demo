@@ -4,7 +4,7 @@
 name = "scop"
 version = "0.1.0"
 description = "File and directory snapshotter"
-scop_version = "0.1.2"
+scop_version = "0.1.2-draft"
 
 [[app.global_param]]
 name = "--output"
@@ -45,7 +45,7 @@ subtitle = "Manage and compare snapshots"
 [[room.stat]]
 id = "last_snap"
 label = "Last snapshot"
-type = "string"
+type = "datetime"
 
 [[room.stat]]
 id = "tracked"
@@ -105,24 +105,6 @@ type = "string"
 metavar = "SNAPSHOT_ID"
 required = true
 
-[[room.command]]
-name = "List"
-exec = "snapshot --list"
-description = "List all snapshots"
-kind = "action"
-
-[[room.command.param]]
-name = "--all"
-kind = "flag"
-type = "boolean"
-short = "-a"
-
-[[room.command]]
-name = "Status"
-exec = "snapshot --status"
-description = "Show snapshot stats"
-kind = "action"
-
 [[room]]
 id = "snapshot/diff"
 title = "Diff"
@@ -147,9 +129,3 @@ kind = "flag"
 type = "string"
 metavar = "SNAPSHOT_ID"
 required = true
-
-[[room.command.param]]
-name = "--help"
-kind = "flag"
-type = "boolean"
-short = "-h"

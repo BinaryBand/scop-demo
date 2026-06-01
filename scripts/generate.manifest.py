@@ -20,6 +20,14 @@ from scop.utils.proc import run_resolved
 DEFAULT_OUT = "scop.toml"
 SCHEMA_REL_PATH = "scop/models/schemas/scop.manifest.schema.json"
 SCHEMA_TAG = f"#:schema {SCHEMA_REL_PATH}"
+SCOP_VERSION = "0.1.2-draft"
+PROTOCOL_DISCOVERY_FLAGS = {"--help", "--list", "--status"}
+PROTOCOL_ONLY_PARAM_NAMES = {"--help"}
+
+
+def _is_protocol_discovery_exec(exec_command: str) -> bool:
+    tokens = _split_command_tokens(exec_command)
+    return any(token in PROTOCOL_DISCOVERY_FLAGS for token in tokens)
 
 
 def _run_scop_ndjson(args: list[str]) -> list[dict[str, object]]:
@@ -91,6 +99,8 @@ def _status_stats(events: list[dict[str, object]]) -> list[dict[str, object]]:
             value = event.get(key)
             if isinstance(value, (str, int, float, bool)):
                 item[key] = value
+        if item.get("id") == "last_snap" and item.get("type") == "string":
+            item["type"] = "datetime"
         if "id" in item and "label" in item and "type" in item:
             stats.append(item)
     return stats
@@ -149,6 +159,8 @@ def _discover_room(exec_tokens: list[str]) -> dict[str, object]:
         command_value = help_value.get("command")
         description_value = help_value.get("description")
         if not isinstance(command_value, str) or not isinstance(description_value, str):
+            continue
+        if _is_protocol_discovery_exec(command_value):
             continue
 
         kind_raw = help_value.get("kind", "action")
@@ -285,6 +297,8 @@ def discover_manifest_draft() -> dict[str, object]:
         description = item.get("description")
         if not isinstance(command, str) or not isinstance(description, str):
             continue
+        if _is_protocol_discovery_exec(command):
+            continue
         kind_raw = item.get("kind", "action")
         kind = kind_raw if isinstance(kind_raw, str) else "action"
         cmd: dict[str, object] = {
@@ -339,7 +353,7 @@ def discover_manifest_draft() -> dict[str, object]:
             "name": "scop",
             "version": "0.1.0",
             "description": "File and directory snapshotter",
-            "scop_version": "0.1.2",
+            "scop_version": SCOP_VERSION,
         },
         "app_global_param": global_params,
         "rooms": rooms,
@@ -355,22 +369,26 @@ def _as_obj_dict(value: object) -> dict[str, object] | None:
 def _load_app_defaults() -> dict[str, str]:
     pyproject = Path("pyproject.toml")
     if not pyproject.exists():
-        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": "0.1.2"}
+        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": SCOP_VERSION}
 
     payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     project = _as_obj_dict(payload.get("project"))
     if project is None:
-        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": "0.1.2"}
+        return {"name": "scop", "version": "0.1.0", "description": "", "scop_version": SCOP_VERSION}
 
     return {
         "name": str(project.get("name", "scop")),
         "version": str(project.get("version", "0.1.0")),
         "description": str(project.get("description", "")),
-        "scop_version": "0.1.2",
+        "scop_version": SCOP_VERSION,
     }
 
 
 def _normalize_param(raw: dict[str, object]) -> dict[str, object]:
+    name_raw = raw.get("name")
+    if isinstance(name_raw, str) and name_raw in PROTOCOL_ONLY_PARAM_NAMES:
+        return {}
+
     normalized: dict[str, object] = {}
     for key in (
         "name",
