@@ -1,22 +1,27 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import AsyncIterator
-from typing import Protocol
 
 from scop.bases import Port
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.stream_port import StreamPort
 
 
-class _RuntimeStreamOps(Protocol):
+class _RuntimeStreamOps(Port):
+    @abstractmethod
     def new_stream(self) -> int: ...
 
+    @abstractmethod
     def emit(self, stream_id: int, event: SyslogMessage) -> None: ...
 
+    @abstractmethod
     def resolve(self, stream_id: int, ok: bool, data: SyslogMessage) -> None: ...
 
+    @abstractmethod
     def result(self, stream_id: int) -> ResolvedResult | None: ...
 
+    @abstractmethod
     def iter_events(self, stream_id: int) -> AsyncIterator[SyslogMessage]: ...
 
 

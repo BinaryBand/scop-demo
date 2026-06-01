@@ -8,10 +8,10 @@ from scop.bases import Adapter
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.runtime_port import RuntimePort
 from scop.ports.stream_port import StreamPort
-from scop.ports.streaming_result import StreamingResult
+from scop.ports.streaming_result import StreamingResult, _RuntimeStreamOps
 
 
-class RuntimeAdapter(Adapter, RuntimePort):
+class RuntimeAdapter(Adapter, RuntimePort, _RuntimeStreamOps):
     port: ClassVar[type[RuntimePort]] = RuntimePort
 
     def __init__(self, stream_factory: Callable[[RuntimeAdapter], StreamingResult]) -> None:
