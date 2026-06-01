@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from scop.app.bases import BaseApp
 from scop.models.protocol import MSGID, SyslogMessage
-from scop.ports.stream import IStream
+from scop.ports.stream_port import StreamPort
 
 _VERSION = "0.1.0"
 
@@ -13,7 +13,7 @@ class RootApp(BaseApp):
         # commands: {name: description} — injected by dispatcher.default()
         self._commands = commands
 
-    async def run(self, args: dict, stream: IStream) -> None:
+    async def run(self, args: dict, stream: StreamPort) -> None:
         stream.emit(
             SyslogMessage(
                 pri=6,
@@ -34,7 +34,7 @@ class RootApp(BaseApp):
         stream.emit(end)
         stream.resolve(ok=True, data=end)
 
-    def _emit_version(self, stream: IStream) -> None:
+    def _emit_version(self, stream: StreamPort) -> None:
         stream.emit(
             SyslogMessage(
                 pri=6,
@@ -45,7 +45,7 @@ class RootApp(BaseApp):
             )
         )
 
-    def _emit_help(self, stream: IStream) -> None:
+    def _emit_help(self, stream: StreamPort) -> None:
         stream.emit(
             SyslogMessage(
                 pri=6,

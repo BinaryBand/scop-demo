@@ -3,7 +3,7 @@ from __future__ import annotations
 from scop.bases import Service
 from scop.models.protocol import MSGID, SyslogMessage
 from scop.ports.snapshot_port import SnapshotPort
-from scop.ports.stream import IStream
+from scop.ports.stream_port import StreamPort
 
 
 class DiffSnapshotsService(Service):
@@ -19,7 +19,7 @@ class DiffSnapshotsService(Service):
         self._from = from_snap
         self._to = to_snap
 
-    async def run(self, stream: IStream) -> None:
+    async def run(self, stream: StreamPort) -> None:
         records = self._port.diff_snapshots(self._from, self._to)
         r = self._room
         stream.emit(
