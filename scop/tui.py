@@ -24,8 +24,9 @@ from typing import Any, ClassVar, TextIO
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, ScrollableContainer
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import (
+    Button,
     DataTable,
     Footer,
     Header,
@@ -53,7 +54,6 @@ class _TableState:
 class _ListState:
     label: str
     ordered: bool
-    room: str | None = None
     items: list[tuple[str, Any]] = field(default_factory=list)
 
 
@@ -71,16 +71,25 @@ class ScopTuiApp(App[None]):
 
     TITLE = "scop-tui"
 
+    # Static nav: (key, label, scop-args)
+    _PAGES: ClassVar[list[tuple[str, str, list[str]]]] = [
+        ("home", "Home", []),
+        ("snapshot", "Snapshots", ["snapshot"]),
+        ("list", "List snapshots", ["snapshot", "--list"]),
+        ("list-all", "All snapshots", ["snapshot", "--list", "--all"]),
+        ("diff", "Diff", ["snapshot", "diff"]),
+    ]
+
     CSS = """
     Horizontal { height: 1fr; }
     #nav {
-        width: 22;
+        width: 20;
         border-right: tall $primary;
-        padding: 0 0;
     }
-    #nav-header { padding: 0 1; color: $text-muted; text-style: bold; }
-    #stats  { width: 22%; border-right: tall $primary; padding: 0 1; }
-    #content { width: 1fr; padding: 0 1; }
+    #nav-heading { padding: 1 1 0 1; color: $text-muted; text-style: bold; }
+    #right { width: 1fr; }
+    #back-btn { margin: 1 1 0 1; width: auto; display: none; }
+    #main { height: 1fr; padding: 0 1; }
     #activity { height: 8; border-top: tall $primary; }
     .stat { margin-bottom: 1; }
     DataTable { height: auto; }
@@ -104,21 +113,20 @@ class ScopTuiApp(App[None]):
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
-        self._nav_cmds: dict[str, list[str]] = {"home": []}
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal():
             with ScrollableContainer(id="nav"):
-                yield Static("  Pages", id="nav-header")
+                yield Static("Pages", id="nav-heading")
                 yield ListView(
-                    ListItem(Label("  Home"), id="nav-home"),
-                    id="nav-list",
+                    *[ListItem(Label(label), id=f"page-{key}") for key, label, _ in self._PAGES],
+                    id="nav-menu",
                 )
-            with ScrollableContainer(id="stats"):
-                pass
-            with ScrollableContainer(id="content"):
-                pass
+            with Vertical(id="right"):
+                yield Button("← Back", id="back-btn", variant="default")
+                with ScrollableContainer(id="main"):
+                    pass
         with ScrollableContainer(id="activity"):
             yield RichLog(id="log", markup=True, highlight=False)
         yield Footer()
@@ -165,15 +173,20 @@ class ScopTuiApp(App[None]):
 
     def _navigate(self, args: list[str]) -> None:
         captured = list(args)
+        self.query_one("#back-btn", Button).display = bool(captured)
         self.run_worker(lambda: self._run_scop(captured), thread=True)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item_id = event.item.id or ""
-        if not item_id.startswith("nav-"):
+        if not item_id.startswith("page-"):
             return
-        key = item_id[4:]  # strip "nav-" prefix
-        args = self._nav_cmds.get(key, [])
+        key = item_id[5:]  # strip "page-" prefix
+        args = next((a for k, _, a in self._PAGES if k == key), [])
         self._navigate(args)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "back-btn":
+            self._navigate([])
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
@@ -219,8 +232,7 @@ class ScopTuiApp(App[None]):
         title = e.get("title") or e.get("room") or "scop"
         self.title = f"{e.get('icon', '')} {title}".strip()
         self.sub_title = e.get("subtitle", "")
-        self.query_one("#stats", ScrollableContainer).remove_children()
-        self.query_one("#content", ScrollableContainer).remove_children()
+        self.query_one("#main", ScrollableContainer).remove_children()
         self._tables.clear()
         self._lists.clear()
         self._procs.clear()
@@ -235,8 +247,8 @@ class ScopTuiApp(App[None]):
         value = e.get("value", "")
         unit = e.get("unit", "")
         display = f"{value}{' ' + unit if unit else ''}"
-        self.query_one("#stats", ScrollableContainer).mount(
-            Static(f"[dim]{label}[/dim]\n[bold]{display}[/bold]", classes="stat")
+        self.query_one("#main", ScrollableContainer).mount(
+            Static(f"[dim]{label}:[/dim]  [bold]{display}[/bold]", classes="stat")
         )
 
     def scalar_clear(self, _e: dict[str, Any]) -> None:
@@ -250,8 +262,8 @@ class ScopTuiApp(App[None]):
         table = DataTable(id=f"table-{e['id']}", cursor_type="row", zebra_stripes=True)
         for col in state.schema:
             table.add_column(col, key=col)
-        content = self.query_one("#content", ScrollableContainer)
-        content.mount(Static(f"[bold]{state.label}[/bold]"), table)
+        main = self.query_one("#main", ScrollableContainer)
+        main.mount(Static(f"[bold]{state.label}[/bold]"), table)
         if not isinstance(self.focused, DataTable):
             table.focus()
 
@@ -288,7 +300,6 @@ class ScopTuiApp(App[None]):
         self._lists[e["id"]] = _ListState(
             label=e.get("label", e["id"]),
             ordered=e.get("ordered", False),
-            room=e.get("room"),
         )
 
     def list_append(self, e: dict[str, Any]) -> None:
@@ -297,40 +308,25 @@ class ScopTuiApp(App[None]):
             state.items.append((e.get("item_id", ""), e.get("value", "")))
 
     def list_update(self, _e: dict[str, Any]) -> None:
-        pass  # TODO: update item in accumulated list before list_end
+        pass  # TODO: update item before list_end
 
     def list_remove(self, _e: dict[str, Any]) -> None:
-        pass  # TODO: remove item from accumulated list before list_end
+        pass  # TODO: remove item before list_end
 
     def list_end(self, e: dict[str, Any]) -> None:
         state = self._lists.pop(e["id"], None)
         if not state:
             return
-
-        if e["id"] == "help" and state.room is None:
-            # Home page commands → populate nav sidebar (SCOP §10: actions slot)
-            nav = self.query_one("#nav-list", ListView)
-            for item in list(nav.query("ListItem")):
-                if item.id != "nav-home":
-                    item.remove()
-            self._nav_cmds = {"home": []}
-            for item_id, value in state.items:
-                if isinstance(value, dict):
-                    cmd_str = value.get("command", "")
-                    self._nav_cmds[item_id] = cmd_str.split()
-                    nav.mount(ListItem(Label(f"  {cmd_str}"), id=f"nav-{item_id}"))
-            return
-
-        content = self.query_one("#content", ScrollableContainer)
-        content.mount(Static(f"[bold]{state.label}[/bold]"))
+        main = self.query_one("#main", ScrollableContainer)
+        main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(state.items, 1):
             prefix = f"{i}." if state.ordered else "•"
             if isinstance(value, dict):
                 cmd = value.get("command", "")
                 desc = value.get("description", "")
-                content.mount(Static(f"  {prefix} [cyan]{cmd}[/cyan]  [dim]{desc}[/dim]"))
+                main.mount(Static(f"  {prefix} [cyan]{cmd}[/cyan]  [dim]{desc}[/dim]"))
             else:
-                content.mount(Static(f"  {prefix} {value}"))
+                main.mount(Static(f"  {prefix} {value}"))
 
     # PROCESS ─────────────────────────────────────────────────────────────────
 
@@ -421,11 +417,11 @@ def main() -> None:
         sys.stdout.write(
             "scop-tui — SCOP §10 event stream renderer\n\n"
             "Usage:\n"
-            "  scop [command] | scop-tui\n"
-            "  scop-tui < events.ndjson\n\n"
-            "  scop-tui --from events.ndjson\n"
-            '  scop-tui --cmd "scop snapshot --list"\n\n'
-            "Keys: q quit, tab/shift+tab change pane, up/down or j/k move rows\n"
+            "  scop-tui                          # standalone with nav\n"
+            "  scop [command] | scop-tui         # pipe a single command\n"
+            "  scop-tui --from events.ndjson     # replay recorded stream\n"
+            '  scop-tui --cmd "scop snapshot"    # run command directly\n\n'
+            "Keys: q quit  tab/shift+tab pane  up/down or j/k rows  ← Back home\n"
         )
         sys.exit(0)
 
