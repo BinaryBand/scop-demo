@@ -63,6 +63,15 @@ class _ProcessState:
     total: float | None
 
 
+@dataclass(frozen=True)
+class _PageSpec:
+    key: str
+    label: str
+    base_args: list[str]
+    query_flags: list[list[str]]
+    parent_key: str | None = None
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
 
 
@@ -71,23 +80,29 @@ class ScopTuiApp(App[None]):
 
     TITLE = "scop-tui"
 
-    # Static nav: (key, label, scop-args, parent-key|None)
-    # parent=None  → root page, no back button when active
-    # parent="xyz" → sub-page, back button navigates to parent
-    _PAGES: ClassVar[list[tuple[str, str, list[str], str | None]]] = [
-        ("home", "🏠 Home", [], None),
-        ("snapshot", "📸 Snapshots", ["snapshot"], None),
-        ("diff", "  🔍 Diff", ["snapshot", "diff"], "snapshot"),
+    _PAGES: ClassVar[list[_PageSpec]] = [
+        _PageSpec(
+            key="home",
+            label="🏠 Home",
+            base_args=[],
+            query_flags=[["--version"], ["--help"]],
+            parent_key=None,
+        ),
+        _PageSpec(
+            key="snapshot",
+            label="📸 Snapshots",
+            base_args=["snapshot"],
+            query_flags=[["--status"], ["--list", "--all"], ["--help"]],
+            parent_key=None,
+        ),
+        _PageSpec(
+            key="diff",
+            label="  🔍 Diff",
+            base_args=["snapshot", "diff"],
+            query_flags=[],
+            parent_key="snapshot",
+        ),
     ]
-
-    _PAGE_PIPELINES: ClassVar[dict[str, list[list[str]]]] = {
-        # Build one "Snapshots" view from SCOP query flags as a page amalgamation.
-        "snapshot": [
-            ["snapshot", "--status"],
-            ["snapshot", "--list", "--all"],
-            ["snapshot", "--help"],
-        ],
-    }
 
     CSS = """
     Horizontal { height: 1fr; }
@@ -133,10 +148,7 @@ class ScopTuiApp(App[None]):
             with ScrollableContainer(id="nav"):
                 yield Static("Pages", id="nav-heading")
                 yield ListView(
-                    *[
-                        ListItem(Label(label), id=f"page-{key}")
-                        for key, label, _, _p in self._PAGES
-                    ],
+                    *[ListItem(Label(page.label), id=f"page-{page.key}") for page in self._PAGES],
                     id="nav-menu",
                 )
             with Vertical(id="right"):
@@ -178,6 +190,14 @@ class ScopTuiApp(App[None]):
         for args in commands:
             self._run_scop(args)
 
+    def _page_by_key(self, key: str) -> _PageSpec | None:
+        return next((page for page in self._PAGES if page.key == key), None)
+
+    def _commands_for_page(self, page: _PageSpec) -> list[list[str]]:
+        if not page.query_flags:
+            return [list(page.base_args)]
+        return [[*page.base_args, *flags] for flags in page.query_flags]
+
     def _process_line(self, raw: str) -> None:
         raw = raw.strip()
         if not raw:
@@ -192,26 +212,25 @@ class ScopTuiApp(App[None]):
     # ── Navigation ────────────────────────────────────────────────────────────
 
     def _navigate(self, key: str) -> None:
-        page = next((p for p in self._PAGES if p[0] == key), None)
+        page = self._page_by_key(key)
         if not page:
             return
-        _, _, args, parent_key = page
-        self._current_key = key
-        self.query_one("#back-btn", Button).display = parent_key is not None
+        self._current_key = page.key
+        self.query_one("#back-btn", Button).display = page.parent_key is not None
 
-        pipeline = self._PAGE_PIPELINES.get(key)
-        if pipeline is not None:
+        commands = self._commands_for_page(page)
+        if len(commands) > 1:
             self._composite_active = True
             self._composite_page_started = False
-            self._composite_page_end_remaining = len(pipeline)
-            captured_pipeline = [list(cmd) for cmd in pipeline]
+            self._composite_page_end_remaining = len(commands)
+            captured_pipeline = [list(cmd) for cmd in commands]
             self.run_worker(lambda: self._run_scop_pipeline(captured_pipeline), thread=True)
             return
 
         self._composite_active = False
         self._composite_page_started = False
         self._composite_page_end_remaining = 0
-        captured = list(args)
+        captured = list(commands[0])
         self.run_worker(lambda: self._run_scop(captured), thread=True)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -222,8 +241,8 @@ class ScopTuiApp(App[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back-btn":
-            current = next((p for p in self._PAGES if p[0] == self._current_key), None)
-            parent_key = current[3] if current else None
+            current = self._page_by_key(self._current_key)
+            parent_key = current.parent_key if current else None
             self._navigate(parent_key or "home")
 
     # ── Routing ───────────────────────────────────────────────────────────────
@@ -280,9 +299,9 @@ class ScopTuiApp(App[None]):
         # If SCOP provided an icon, update the matching nav label (root pages only).
         # Sub-page icons (List, All, Diff) come from _PAGES defaults, not PAGE_BEGIN.
         if icon:
-            page = next((p for p in self._PAGES if p[0] == self._current_key), None)
-            if page and page[3] is None:  # root pages only — sub-pages use _PAGES defaults
-                bare = " ".join(w for w in page[1].split() if all(ord(c) <= 127 for c in w))
+            page = self._page_by_key(self._current_key)
+            if page and page.parent_key is None:  # root pages only — sub-pages use _PAGES defaults
+                bare = " ".join(w for w in page.label.split() if all(ord(c) <= 127 for c in w))
                 for item in self.query(f"#page-{self._current_key}").results(ListItem):
                     for lbl in item.query(Label).results(Label):
                         lbl.update(f"{icon} {bare}")
