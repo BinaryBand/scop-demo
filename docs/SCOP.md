@@ -1,6 +1,6 @@
 # Structured CLI Output Protocol (SCOP)
 
-**Version:** 0.1.0-draft  
+**Version:** 0.1.1-draft  
 **Status:** Draft Specification  
 **License:** CC0 1.0 Universal (Public Domain)
 
@@ -22,7 +22,7 @@ Draft specification, published for review and comment. The key words "MUST", "MU
 
 CLI applications lack a formal output standard. Every CLI-to-GUI bridge must be written per-application, duplicating effort and coupling tightly to application internals. SCOP addresses this by defining structured output that is CLI-first (`msg` always readable as plain text), standard-grounded (builds on POSIX, GNU, RFC 5424), and auto-translatable (a conforming renderer needs no app-specific code).
 
-SCOP defines a wire format, event vocabulary, room model, GNU flag contracts, and page template. It does not define GUI rendering details, transport beyond stdout, authentication, or application business logic.
+SCOP defines a wire format, event vocabulary, room model, GNU flag contracts, and page template. It does not define GUI rendering details, transport beyond stdout, authentication, or application business logic. The companion specification **SCOP-M** defines a declarative manifest format (`scop.toml`) for statically describing a SCOP application's rooms, commands, and input types.
 
 SCOP is a composition, not a replacement:
 
@@ -110,7 +110,7 @@ Every SCOP event is a serialised RFC 5424 message.
 
 ## 5. Wire Format
 
-Events are serialised as **NDJSON** — one complete JSON object per line, separated by `\n`. Each line MUST be independently parseable. Producers MUST write to stdout.
+Events are serialised as **NDJSON** — one complete JSON object per line, separated by `\n`. Each line MUST be independently parseable. Producers MUST write to stdout. Producers MUST encode all output as **UTF-8**.
 
 Every event MUST contain `pri`, `msgid`, `room`, and `msg`. The `msg` field MUST be a complete standalone readable line — it MUST NOT require other fields to be meaningful, and MUST NOT verbatim duplicate them.
 
@@ -149,11 +149,20 @@ Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END`. `PAGE_END.msg
 
 | MSGID | Required | Optional |
 | --- | --- | --- |
-| `PAGE_BEGIN` | `room`, `title` | `subtitle`, `icon` |
+| `PAGE_BEGIN` | `room`, `title` | `subtitle`, `icon`, `intent` |
 | `PAGE_END` | `room` | |
 
+The `icon` field, when present, MUST be a GitHub gemoji code of the form `:name:` (e.g., `:camera_with_flash:`). Raw Unicode codepoints MUST NOT be used. CLI renderers print or ignore the string as-is; GUI renderers map it to an icon asset.
+
+The `intent` field declares how the consumer MUST integrate this stream into the current view. If omitted, consumers MUST treat it as `"query"`.
+
+| `intent` value | Consumer behaviour |
+| --- | --- |
+| `"query"` | Build or replace the page view. All slots are updated. Used for `--status`, `--list`, `--help`, and navigation. |
+| `"action"` | An operation is running. Route `PROCESS_*` events to the activity slot only. All other slots remain intact. |
+
 ```json
-{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": "📸", "msg": "=== Snapshots ==="}
+{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "intent": "query", "msg": "=== Snapshots ==="}
 {"pri": 6, "msgid": "PAGE_END", "room": "snapshot", "msg": ""}
 ```
 
@@ -166,18 +175,25 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 | `PROCESS_BEGIN` | `id`, `label` | `total`, `dry_run`, `recursive` |
 | `PROCESS_UPDATE` | `id`, `current` | `total`, `label` |
 | `PROCESS_END` | `id`, `ok` | `dry_run` |
-| `PROCESS_LOG` | `id`, `message` | |
+| `PROCESS_LOG` | `id` | |
+
+`PROCESS_LOG` carries its payload in `msg` only — no separate `message` field. `msg` is already globally required and serves as the log line directly.
 
 ```json
 {"pri": 6, "msgid": "PROCESS_BEGIN", "room": "snapshot", "id": "snap", "label": "Hashing files", "total": 42, "msg": "Hashing files (42)"}
 {"pri": 6, "msgid": "PROCESS_UPDATE", "room": "snapshot", "id": "snap", "current": 21, "total": 42, "msg": "21 of 42: intro.md"}
-{"pri": 6, "msgid": "PROCESS_LOG", "room": "snapshot", "id": "snap", "message": "skipping binary", "msg": "skipping binary"}
+{"pri": 6, "msgid": "PROCESS_LOG", "room": "snapshot", "id": "snap", "msg": "snap: skipping binary file"}
 {"pri": 6, "msgid": "PROCESS_END", "room": "snapshot", "id": "snap", "ok": true, "msg": "Hashing complete"}
 ```
 
 ### 7.3 SCALAR — Single Named Value
 
 `type` MUST be one of: `number`, `string`, `boolean`, `duration`, `bytes`.
+
+**Serialization of abstract types:**
+
+- `bytes` — `value` MUST be a JSON integer representing the absolute byte count (e.g. `12582912`). The `unit` field SHOULD carry the display denomination (e.g. `"bytes"`, `"KB"`, `"MB"`); formatting is the consumer's responsibility.
+- `duration` — `value` MUST be an ISO 8601 duration string (e.g. `"PT1M30S"`). Raw integers MUST NOT be used; the unit is ambiguous without the format.
 
 | MSGID | Required | Optional |
 | --- | --- | --- |
@@ -186,7 +202,8 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 
 ```json
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "tracked", "label": "Tracked files", "value": 1042, "type": "number", "unit": "files", "msg": "Tracked files: 1042 files"}
-{"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "last_snap", "label": "Last snapshot", "value": "2026-05-30T14:32:00Z", "type": "string", "msg": "Last snapshot: 2026-05-30T14:32:00Z"}
+{"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "index_size", "label": "Index size", "value": 12582912, "type": "bytes", "unit": "MB", "msg": "Index size: 12 MB"}
+{"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "elapsed", "label": "Elapsed", "value": "PT1M30S", "type": "duration", "msg": "Elapsed: 1m 30s"}
 ```
 
 ### 7.4 LIST — Sequence
@@ -238,10 +255,28 @@ Query flags produce data output and exit. Each response MUST be wrapped in `PAGE
 ```text
 PAGE_BEGIN (room: current, title: command name)
 LIST_DECLARE (id: "help", ordered: false)
-LIST_APPEND ×n (value: {command, description})
+LIST_APPEND ×n (value: {command, description[, params]})
 LIST_END
 PAGE_END
 ```
+
+Each `LIST_APPEND.value` MAY include a `params` array describing the command's accepted inputs. Producers that supply a SCOP-M manifest SHOULD include `params`. CLI consumers MUST ignore unknown fields; GUI consumers use `params` to render input forms.
+
+```json
+{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help",
+ "item_id": "snap",
+ "value": {
+   "command": "snap",
+   "description": "Take a new snapshot",
+   "params": [
+     {"name": "--path",      "type": "path",     "pattern": "^/[^\\0]*$", "required": false, "default": "."},
+     {"name": "--date",      "type": "datetime",  "required": false},
+     {"name": "--format",    "type": "choice",    "choices": ["json","tar","zip"], "required": false, "default": "json"},
+     {"name": "--dry-run",   "type": "boolean",   "required": false},
+     {"name": "--recursive", "type": "boolean",   "required": false}
+   ]
+ },
+ "msg": "  snap    Take a new snapshot"}
 
 **`--version`**
 
@@ -325,7 +360,7 @@ Each call is independent. A page MAY be built from a subset.
 **Full page manifest example** (`ourapp snapshot`):
 
 ```json
-{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": "📸", "msg": "=== Snapshots ==="}
+{"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "msg": "=== Snapshots ==="}
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "tracked", "label": "Tracked files", "value": 1042, "type": "number", "msg": "Tracked files: 1042"}
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "last_snap", "label": "Last snapshot", "value": "2026-05-30T14:32:00Z", "type": "string", "msg": "Last snapshot: 2026-05-30T14:32:00Z"}
 {"pri": 6, "msgid": "TABLE_DECLARE", "room": "snapshot", "id": "snaps", "label": "Snapshots", "schema": ["name", "files", "size", "date"], "msg": "Snapshots"}
@@ -360,13 +395,14 @@ A conforming consumer routes events using this table. No application knowledge i
 
 | MSGID / condition | Slot | Notes |
 | --- | --- | --- |
-| `PAGE_BEGIN` | open page | set title, subtitle, icon |
+| `PAGE_BEGIN` where `intent: "query"` | open / replace page | sets all slots; replaces current content |
+| `PAGE_BEGIN` where `intent: "action"` | open activity overlay | activity slot only; all other slots unchanged |
 | `SCALAR_SET` | stats area | stat card |
 | `TABLE_*` | content area | table, grid, or chart |
 | `LIST_*` where `id="help"` | actions area | buttons or command palette |
 | `LIST_*` otherwise | content area | list |
 | `PROCESS_*` | activity indicator | progress bar or spinner |
-| `PAGE_END` | close page | finalise layout |
+| `PAGE_END` | close page / overlay | finalise layout |
 | `pri` 0–3 | error modal | blocking |
 | `pri` 4 | warning banner | non-blocking |
 | `pri` 5–6 | log area | append |
@@ -374,15 +410,17 @@ A conforming consumer routes events using this table. No application knowledge i
 
 Unknown MSGIDs MUST be routed to the log area using `msg`. Unknown fields MUST be ignored.
 
+Consumers MUST maintain independent slot state per `id` for `PROCESS_*` events. A room MAY contain multiple concurrent processes with distinct `id` values active simultaneously; consumers MUST NOT assume a 1:1 mapping between a room and an active process.
+
 ---
 
 ## 11. Conformance
 
-**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help` and `--version` per §8.1.
+**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help` and `--version` per §8.1; include `intent` on every `PAGE_BEGIN` — `"query"` for discovery flag streams (`--help`, `--status`, `--list`), `"action"` for command execution streams.
 
-**Producer SHOULD:** implement `--status`, `--list` (§8.1); implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3).
+**Producer SHOULD:** implement `--status`, `--list` (§8.1); implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3); design rooms such that `--status` and `--list` are invocable without positional arguments. If a room's query flags are called with missing required parameters, the producer MUST emit a well-formed empty page — `PAGE_BEGIN` + `SCALAR_SET` with `id="page.empty"` + `PAGE_END` — rather than exiting with a non-zero status. Rooms SHOULD NOT encode runtime entity identifiers in their room path; entity context is a runtime parameter, not a room identifier.
 
-**Consumer MUST:** parse NDJSON line-by-line; route events per §10; render `msg` as fallback for unknown MSGIDs; ignore unknown MSGIDs and fields without error; map RFC 5424 severity per §4.2.
+**Consumer MUST:** parse NDJSON line-by-line; route events per §10 using the `intent` field on `PAGE_BEGIN`; render `msg` as fallback for unknown MSGIDs; ignore unknown MSGIDs and fields without error; map RFC 5424 severity per §4.2; if stdout closes or the process exits before `PAGE_END` is received, synthesise a terminal error state using any partial content and severity already received — a consumer MUST NOT remain in an indeterminate loading state.
 
 **Consumer SHOULD:** implement the three-flag protocol (§9); support optional slots (§9).
 
@@ -412,7 +450,9 @@ Unknown MSGIDs MUST be routed to the log area using `msg`. Unknown fields MUST b
 
 ### Informative
 
+- **SCOP-M v0.1.0-draft** — SCOP Manifest Format (companion specification)
 - **LSP `$/progress`** — Language Server Protocol §3.16.1. Microsoft (2021).
 - **Adaptive Cards** — adaptivecards.io
 - **CloudEvents** — CNCF CloudEvents v1.0.2. cloudevents.io
 - **TLDP Standard Options** — tldp.org/LDP/abs/html/standard-options.html
+- **GitHub gemoji** — github.com/github/gemoji (icon field encoding standard)
