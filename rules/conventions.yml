@@ -1,4 +1,4 @@
-# Rule 1:  deferred — no gate yet (docs/TODO)
+# Rule 1:  ast-grep (side-effect stdlib imports and direct open() in core layers)
 # Rule 2:  import-linter (.importlinter)
 # Rule 3:  one-class-per-role-file
 # Rule 4:  adapter-must-declare-port
@@ -10,6 +10,75 @@
 # Rule 10: utils-allowlist
 # Rule 11: deferred — no gate yet (docs/TODO)
 # Rule 12: ruff TID banned-api, FA102
+---
+# Rule 1: core layers may not import side-effectful stdlib modules directly.
+id: no-side-effect-stdlib-imports-in-core
+language: python
+severity: error
+message: >
+  Rule 1: app/services/ports/models must stay side-effect-free. Import this stdlib module via scop.utils in adapters instead.
+rule:
+  any:
+    - pattern: "import $MOD"
+    - pattern: "from $MOD import $$$"
+constraints:
+  MOD:
+    regex: "^(?:asyncio|concurrent|glob|gzip|bz2|lzma|http|urllib|ftplib|imaplib|smtplib|telnetlib|os|pathlib|queue|shutil|socket|ssl|stat|subprocess|tarfile|tempfile|threading|zipfile|io|mmap|multiprocessing)(?:\\..*)?$"
+files:
+  - "scop/app/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/models/**/*.py"
+
+---
+# Rule 1: core layers may not perform direct file I/O.
+id: no-direct-open-in-core
+language: python
+severity: error
+message: >
+  Rule 1: app/services/ports/models must not perform direct file I/O; route file access through ports/adapters/utils.
+rule:
+  any:
+    - pattern: "open($$$)"
+    - pattern: "io.open($$$)"
+    - pattern: "os.open($$$)"
+    - pattern: "$PATH.open($$$)"
+    - pattern: "$PATH.read_text($$$)"
+    - pattern: "$PATH.read_bytes($$$)"
+    - pattern: "$PATH.write_text($$$)"
+    - pattern: "$PATH.write_bytes($$$)"
+    - pattern: "$PATH.touch($$$)"
+    - pattern: "$PATH.unlink($$$)"
+    - pattern: "$PATH.mkdir($$$)"
+    - pattern: "$PATH.rmdir($$$)"
+    - pattern: "$PATH.rename($$$)"
+    - pattern: "$PATH.replace($$$)"
+    - pattern: "$PATH.symlink_to($$$)"
+    - pattern: "$PATH.hardlink_to($$$)"
+files:
+  - "scop/app/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/models/**/*.py"
+
+---
+# Rule 1: core layers may not dynamically import side-effectful modules.
+id: no-dynamic-import-in-core
+language: python
+severity: error
+message: >
+  Rule 1: app/services/ports/models must not use dynamic imports; import through
+  stable layer boundaries (ports/adapters/utils).
+rule:
+  any:
+    - pattern: "__import__($$$)"
+    - pattern: "import_module($$$)"
+    - pattern: "importlib.import_module($$$)"
+files:
+  - "scop/app/**/*.py"
+  - "scop/services/**/*.py"
+  - "scop/ports/**/*.py"
+  - "scop/models/**/*.py"
 ---
 # Rule 3: One class per role file
 id: one-class-per-role-file
