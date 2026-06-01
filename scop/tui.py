@@ -30,6 +30,7 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    Input,
     Label,
     ListItem,
     ListView,
@@ -93,6 +94,9 @@ class ScopTuiApp(App[None]):
     #cta-slot { height: auto; margin-bottom: 1; }
     #cta-row { height: auto; }
     #cta-row Button { margin-right: 1; min-width: 12; }
+    #action-form { height: auto; margin-bottom: 1; }
+    #action-form Input { margin: 0 0 1 0; }
+    #action-form Button { width: auto; }
     #activity { height: 8; border-top: tall $primary; }
     .stat { margin-bottom: 1; }
     DataTable { height: auto; }
@@ -122,6 +126,8 @@ class ScopTuiApp(App[None]):
         self._composite_active = False
         self._composite_page_started = False
         self._composite_page_end_remaining = 0
+        self._form_inputs_by_page: dict[str, list[tuple[str, str, str]]] = {}
+        self._form_auto_flags_by_page: dict[str, list[str]] = {}
         self._ensure_page(
             _PageSpec(
                 key="home",
@@ -239,6 +245,18 @@ class ScopTuiApp(App[None]):
             return None
         encoded = item_id[4:]
         return encoded.replace("__", "/")
+
+    def _form_submit_id_for_key(self, key: str) -> str:
+        return f"form-submit-{key.replace('/', '__')}"
+
+    def _key_from_form_submit_id(self, item_id: str) -> str | None:
+        if not item_id.startswith("form-submit-"):
+            return None
+        encoded = item_id[12:]
+        return encoded.replace("__", "/")
+
+    def _form_input_id(self, key: str, index: int) -> str:
+        return f"form-input-{key.replace('/', '__')}-{index}"
 
     def _ensure_page(self, page: _PageSpec) -> None:
         if page.key in self._pages:
@@ -382,9 +400,127 @@ class ScopTuiApp(App[None]):
             self._navigate(parent_key or "home")
             return
 
+        form_key = self._key_from_form_submit_id(button_id)
+        if form_key is not None:
+            page = self._page_by_key(form_key)
+            if page is None:
+                return
+
+            args = list(page.base_args)
+            args.extend(self._form_auto_flags_by_page.get(form_key, []))
+
+            missing: list[str] = []
+            for input_id, param_name, param_kind in self._form_inputs_by_page.get(form_key, []):
+                field = next(self.query(f"#{input_id}").results(Input), None)
+                if field is None:
+                    continue
+                value = field.value.strip()
+                if not value:
+                    missing.append(param_name)
+                    continue
+                if param_kind == "positional":
+                    args.append(value)
+                else:
+                    args.extend([param_name, value])
+
+            if missing:
+                self._log(f"[yellow]missing required:[/yellow] {', '.join(missing)}")
+                return
+
+            self.run_worker(lambda: self._run_scop(args), thread=True)
+            return
+
         cta_key = self._key_from_cta_id(button_id)
         if cta_key is not None:
             self._navigate(cta_key)
+
+    def _mount_action_form(
+        self,
+        main: ScrollableContainer,
+        current_page: _PageSpec,
+        render_items: list[tuple[str, Any]],
+    ) -> None:
+        command_key = " ".join(current_page.base_args)
+        selected_value: dict[str, Any] | None = None
+
+        for _, value in render_items:
+            if not isinstance(value, dict):
+                continue
+            command = value.get("command")
+            if isinstance(command, str) and command == command_key:
+                selected_value = value
+                break
+
+        self._form_inputs_by_page[current_page.key] = []
+        self._form_auto_flags_by_page[current_page.key] = []
+        if selected_value is None:
+            return
+
+        if selected_value.get("kind", "action") != "action":
+            return
+
+        raw_params = selected_value.get("params")
+        if not isinstance(raw_params, list):
+            return
+
+        input_rows: list[tuple[str, str, str, str]] = []
+        mounted_any = False
+
+        for idx, raw_param in enumerate(raw_params):
+            if not isinstance(raw_param, dict):
+                continue
+            param = dict(raw_param)
+
+            name = param.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+            name = name.strip()
+
+            kind = param.get("kind")
+            if kind not in {"flag", "positional"}:
+                continue
+
+            required = bool(param.get("required", kind == "positional"))
+            if not required:
+                continue
+
+            param_type = param.get("type")
+            metavar = param.get("metavar")
+            expects_value = (
+                kind == "positional"
+                or (isinstance(metavar, str) and bool(metavar.strip()))
+                or param_type != "boolean"
+            )
+
+            if not expects_value and kind == "flag":
+                self._form_auto_flags_by_page[current_page.key].append(name)
+                mounted_any = True
+                continue
+
+            input_id = self._form_input_id(current_page.key, idx)
+            short = param.get("short")
+            short_text = f" ({short})" if isinstance(short, str) and short.strip() else ""
+            placeholder = (
+                metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
+            )
+            input_rows.append((input_id, name, short_text, placeholder))
+            self._form_inputs_by_page[current_page.key].append((input_id, name, kind))
+            mounted_any = True
+
+        if not mounted_any:
+            return
+
+        form_box = Vertical(id="action-form")
+        main.mount(form_box)
+        form_box.mount(Static("[bold]Required Inputs[/bold]"))
+
+        for input_id, name, short_text, placeholder in input_rows:
+            form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
+            form_box.mount(Input(placeholder=placeholder, id=input_id))
+
+        form_box.mount(
+            Button("Submit", id=self._form_submit_id_for_key(current_page.key), variant="success")
+        )
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
@@ -598,6 +734,10 @@ class ScopTuiApp(App[None]):
                     render_items = scoped_items
 
         main = self.query_one("#main", ScrollableContainer)
+        if e["id"] == "help":
+            current_page = self._page_by_key(self._current_key)
+            if current_page is not None:
+                self._mount_action_form(main, current_page, render_items)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(render_items, 1):
             prefix = f"{i}." if state.ordered else "•"
