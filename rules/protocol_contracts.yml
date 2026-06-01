@@ -48,10 +48,10 @@ message: >
   Use snapshot command namespace instead of legacy top-level commands (see CLI_CONTRACT.md)
 rule:
   any:
-    - pattern: "sub.add_parser(\"snap\", $$$)"
-    - pattern: "sub.add_parser(\"diff\", $$$)"
-    - pattern: "sub.add_parser(\"status\", $$$)"
-    - pattern: "sub.add_parser(\"log\", $$$)"
-    - pattern: "sub.add_parser(\"restore\", $$$)"
+    - pattern: 'sub.add_parser("snap", $$$)'
+    - pattern: 'sub.add_parser("diff", $$$)'
+    - pattern: 'sub.add_parser("status", $$$)'
+    - pattern: 'sub.add_parser("log", $$$)'
+    - pattern: 'sub.add_parser("restore", $$$)'
 files:
   - "scop/cli.py"
