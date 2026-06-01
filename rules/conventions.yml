@@ -8,7 +8,7 @@
 # Rule 8:  no-argparse-outside-cli, no-sys-exit-outside-cli
 # Rule 9:  msgid-must-use-enum
 # Rule 10: utils-allowlist
-# Rule 11: deferred — no gate yet (docs/TODO)
+# Rule 11: pytest tests.architecture.test_rule_11_depth_imports
 # Rule 12: ruff TID banned-api, FA102
 ---
 # Rule 1: core layers may not import side-effectful stdlib modules directly.
