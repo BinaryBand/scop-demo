@@ -30,7 +30,7 @@ poetry run scop snapshot --status               # same as above
 poetry run scop snapshot --list                 # list all snapshots as a table
 poetry run scop snapshot --list --all           # include older snapshots
 poetry run scop snapshot --help                 # available snapshot commands
-```
+```sdfdsf
 
 ### `snapshot create`
 

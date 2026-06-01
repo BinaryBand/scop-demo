@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
@@ -10,7 +12,8 @@ from scop.bases import Adapter
 from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 from scop.ports.snapshot_port import SnapshotPort
 
-_STORE = Path(".scop") / "snapshots"
+_STORE = Path("downloads") / "snapshots"
+_OBJECTS = Path("downloads") / "objects"  # content-addressable blob store
 
 
 def _fmt_size(n: int) -> str:
@@ -39,18 +42,44 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _scan_tree(root: Path, *, recursive: bool) -> dict[str, dict]:
+def _scan_files(root: Path, *, recursive: bool) -> Iterator[tuple[str, Path, str, int]]:
+    """Yield (rel_path, abs_path, sha256_hex, size_bytes) for each tracked file."""
     pattern = "**/*" if recursive else "*"
-    result: dict[str, dict] = {}
     for p in sorted(root.glob(pattern)):
         if not p.is_file():
             continue
         if any(part.startswith(".") for part in p.relative_to(root).parts):
             continue
         rel = str(p.relative_to(root))
-        size = p.stat().st_size
-        result[rel] = {"hash": _hash_file(p), "size": size}
-    return result
+        yield rel, p, _hash_file(p), p.stat().st_size
+
+
+def _scan_tree(root: Path, *, recursive: bool) -> dict[str, dict]:
+    """Return {rel_path: {hash, size}} — thin wrapper over _scan_files."""
+    return {
+        rel: {"hash": digest, "size": size}
+        for rel, _, digest, size in _scan_files(root, recursive=recursive)
+    }
+
+
+# ── Object store ──────────────────────────────────────────────────────────────
+# Stage 2 extension points:
+#   _object_path  — add pack-file fallback lookup here
+#   _write_object — add zlib compression / deltification here
+
+
+def _object_path(digest: str) -> Path:
+    """Loose object path for a blob (git-style two-char prefix sharding)."""
+    return _OBJECTS / digest[:2] / digest[2:]
+
+
+def _write_object(digest: str, source: Path) -> None:
+    """Store source content under its hash. No-op if the object already exists."""
+    dest = _object_path(digest)
+    if dest.exists():
+        return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, dest)
 
 
 def _load(name: str) -> dict:
@@ -103,20 +132,25 @@ class SnapshotAdapter(Adapter, SnapshotPort):
         self, *, path: str, dry_run: bool = False, recursive: bool = False, force: bool = False
     ) -> SnapshotRecord:
         root = Path(path).resolve()
-        files = _scan_tree(root, recursive=recursive)
 
+        # Single pass: collect manifest data and remember abs paths for object writes.
+        scanned = list(_scan_files(root, recursive=recursive))
+        files = {rel: {"hash": digest, "size": size} for rel, _, digest, size in scanned}
+
+        # Guard before writing anything — manifest is the authoritative record.
         if not force and _STORE.exists():
             snaps = sorted(_STORE.glob("snap-*.json"))
-            if snaps:
-                last = _load(snaps[-1].stem)
-                if last["files"] == files:
-                    raise RuntimeError("no changes since last snapshot — use --force to override")
+            if snaps and _load(snaps[-1].stem)["files"] == files:
+                raise RuntimeError("no changes since last snapshot — use --force to override")
 
         name = _next_name()
         total = sum(f["size"] for f in files.values())
         now = datetime.now(UTC).isoformat(timespec="seconds")
 
         if not dry_run:
+            # Write objects first; only commit the manifest once all blobs are safe.
+            for _, abs_path, digest, _ in scanned:
+                _write_object(digest, abs_path)
             _STORE.mkdir(parents=True, exist_ok=True)
             (_STORE / f"{name}.json").write_text(
                 json.dumps({"name": name, "created": now, "files": files}, indent=2),
