@@ -62,7 +62,12 @@ _ROOT_HELP_ITEMS = [
             "description": "Restore a snapshot to a directory",
             "kind": "action",
             "params": [
-                {"name": "name", "kind": "positional", "metavar": "SNAPSHOT_ID"},
+                {
+                    "name": "name",
+                    "kind": "positional",
+                    "metavar": "SNAPSHOT_ID",
+                    "select_from": "snapshot --list --all",
+                },
                 {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
                 {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},
@@ -281,7 +286,12 @@ _RESTORE_HELP_ITEMS = [
             "description": "Restore a snapshot to a directory",
             "kind": "action",
             "params": [
-                {"name": "name", "kind": "positional", "metavar": "SNAPSHOT_ID"},
+                {
+                    "name": "name",
+                    "kind": "positional",
+                    "metavar": "SNAPSHOT_ID",
+                    "select_from": "snapshot --list --all",
+                },
                 {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
                 {"name": "--help", "kind": "flag", "short": "-h", "type": "boolean"},
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},

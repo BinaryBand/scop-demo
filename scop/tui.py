@@ -36,6 +36,7 @@ from textual.widgets import (
     ListView,
     ProgressBar,
     RichLog,
+    Select,
     Static,
 )
 
@@ -96,6 +97,7 @@ class ScopTuiApp(App[None]):
     #cta-row Button { margin-right: 1; min-width: 12; }
     #action-form { height: auto; margin-bottom: 1; }
     #action-form Input { margin: 0 0 1 0; }
+    #action-form Select { margin: 0 0 1 0; }
     #action-form Button { width: auto; }
     #activity { height: 8; border-top: tall $primary; }
     .stat { margin-bottom: 1; }
@@ -411,10 +413,13 @@ class ScopTuiApp(App[None]):
 
             missing: list[str] = []
             for input_id, param_name, param_kind in self._form_inputs_by_page.get(form_key, []):
-                field = next(self.query(f"#{input_id}").results(Input), None)
-                if field is None:
-                    continue
-                value = field.value.strip()
+                select_widget = next(self.query(f"#{input_id}").results(Select), None)
+                if select_widget is not None:
+                    raw = select_widget.value
+                    value = "" if raw is Select.BLANK else str(raw)
+                else:
+                    field = next(self.query(f"#{input_id}").results(Input), None)
+                    value = field.value.strip() if field is not None else ""
                 if not value:
                     missing.append(param_name)
                     continue
@@ -463,7 +468,7 @@ class ScopTuiApp(App[None]):
         if not isinstance(raw_params, list):
             return
 
-        input_rows: list[tuple[str, str, str, str]] = []
+        input_rows: list[tuple[str, str, str, str, str | None]] = []
         mounted_any = False
 
         for idx, raw_param in enumerate(raw_params):
@@ -497,13 +502,14 @@ class ScopTuiApp(App[None]):
                 mounted_any = True
                 continue
 
+            select_from = param.get("select_from")
             input_id = self._form_input_id(current_page.key, idx)
             short = param.get("short")
             short_text = f" ({short})" if isinstance(short, str) and short.strip() else ""
             placeholder = (
                 metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
             )
-            input_rows.append((input_id, name, short_text, placeholder))
+            input_rows.append((input_id, name, short_text, placeholder, select_from))
             self._form_inputs_by_page[current_page.key].append((input_id, name, kind))
             mounted_any = True
 
@@ -514,13 +520,46 @@ class ScopTuiApp(App[None]):
         main.mount(form_box)
         form_box.mount(Static("[bold]Required Inputs[/bold]"))
 
-        for input_id, name, short_text, placeholder in input_rows:
+        for input_id, name, short_text, placeholder, select_from in input_rows:
             form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
-            form_box.mount(Input(placeholder=placeholder, id=input_id))
+            if isinstance(select_from, str) and select_from.strip():
+                form_box.mount(Select([], id=input_id, prompt=f"Choose {placeholder}…"))
+                select_args = shlex.split(select_from.strip())
+                self.run_worker(
+                    lambda sid=input_id, sa=select_args: self._fetch_select_options(sid, sa),
+                    thread=True,
+                )
+            else:
+                form_box.mount(Input(placeholder=placeholder, id=input_id))
 
         form_box.mount(
             Button("Submit", id=self._form_submit_id_for_key(current_page.key), variant="success")
         )
+
+    def _fetch_select_options(self, select_id: str, args: list[str]) -> None:
+        """Worker: run a scop command and collect TABLE_ROW name values for a Select."""
+        exe = shutil.which("scop") or "scop"
+        result = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
+        names: list[str] = []
+        for raw in result.stdout.splitlines():
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                e: dict[str, Any] = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if e.get("msgid") == "TABLE_ROW":
+                name = e.get("values", {}).get("name")
+                if isinstance(name, str) and name:
+                    names.append(name)
+        self.call_from_thread(self._populate_select, select_id, names)
+
+    def _populate_select(self, select_id: str, names: list[str]) -> None:
+        """Main thread: fill a Select widget with the fetched names."""
+        for widget in self.query(f"#{select_id}").results(Select):
+            widget.set_options([(n, n) for n in names])
+            break
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
