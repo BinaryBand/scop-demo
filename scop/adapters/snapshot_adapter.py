@@ -164,6 +164,23 @@ class SnapshotAdapter(Adapter, SnapshotPort):
             date=now[:10],
         )
 
+    def restore_snapshot(self, *, name: str, output: str) -> int:
+        manifest = _load(name)
+        root = Path(output).resolve()
+        count = 0
+        for rel, info in manifest["files"].items():
+            src = _object_path(info["hash"])
+            if not src.exists():
+                raise FileNotFoundError(
+                    f"object {info['hash'][:12]}… missing for {rel!r} "
+                    f"— was this snapshot created before the object store was introduced?"
+                )
+            dest = root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            count += 1
+        return count
+
     def diff_snapshots(self, from_snap: str | None, to_snap: str | None) -> list[DiffRecord]:
         from_files: dict[str, dict] = _load(from_snap)["files"] if from_snap else {}
         to_files: dict[str, dict] = _load(to_snap)["files"] if to_snap else {}

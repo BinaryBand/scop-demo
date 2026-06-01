@@ -7,13 +7,6 @@ description = "File and directory snapshotter"
 scop_version = "0.1.2-draft"
 
 [[app.global_param]]
-name = "--output"
-kind = "flag"
-type = "string"
-short = "-o"
-metavar = "FILE"
-
-[[app.global_param]]
 name = "--quiet"
 kind = "flag"
 type = "boolean"
@@ -85,10 +78,35 @@ type = "boolean"
 short = "-f"
 
 [[room.command.param]]
+name = "--output"
+kind = "flag"
+type = "string"
+short = "-o"
+metavar = "FILE"
+
+[[room.command.param]]
 name = "--recursive"
 kind = "flag"
 type = "boolean"
 short = "-r"
+
+[[room.command]]
+name = "Restore"
+exec = "snapshot restore"
+description = "Restore a snapshot to a directory"
+kind = "action"
+
+[[room.command.param]]
+name = "name"
+kind = "positional"
+type = "string"
+metavar = "SNAPSHOT_ID"
+
+[[room.command.param]]
+name = "dest"
+kind = "positional"
+type = "string"
+metavar = "OUTPUT_DIR"
 
 [[room.command]]
 name = "Diff"
@@ -110,6 +128,13 @@ kind = "flag"
 type = "string"
 metavar = "SNAPSHOT_ID"
 required = true
+
+[[room.command.param]]
+name = "--output"
+kind = "flag"
+type = "string"
+short = "-o"
+metavar = "FILE"
 
 [[room]]
 id = "snapshot/diff"
@@ -135,3 +160,10 @@ kind = "flag"
 type = "string"
 metavar = "SNAPSHOT_ID"
 required = true
+
+[[room.command.param]]
+name = "--output"
+kind = "flag"
+type = "string"
+short = "-o"
+metavar = "FILE"

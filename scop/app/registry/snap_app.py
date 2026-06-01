@@ -9,6 +9,7 @@ from scop.ports.streaming_result import StreamingResult
 from scop.services.create_snapshot_service import CreateSnapshotService
 from scop.services.diff_snapshots_service import DiffSnapshotsService
 from scop.services.list_snapshots_service import ListSnapshotsService
+from scop.services.restore_snapshot_service import RestoreSnapshotService
 from scop.services.snapshot_status_service import SnapshotStatusService
 
 _ROOT_HELP_ITEMS = [
@@ -51,6 +52,20 @@ _ROOT_HELP_ITEMS = [
                     "short": "-v",
                     "type": "boolean",
                 },
+            ],
+        },
+    },
+    {
+        "item_id": "snapshot restore",
+        "value": {
+            "command": "snapshot restore",
+            "description": "Restore a snapshot to a directory",
+            "kind": "action",
+            "params": [
+                {"name": "name", "kind": "positional", "metavar": "SNAPSHOT_ID"},
+                {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
+                {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
+                {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},
             ],
         },
     },
@@ -258,6 +273,24 @@ _DIFF_HELP_ITEMS = [
     }
 ]
 
+_RESTORE_HELP_ITEMS = [
+    {
+        "item_id": "snapshot restore",
+        "value": {
+            "command": "snapshot restore",
+            "description": "Restore a snapshot to a directory",
+            "kind": "action",
+            "params": [
+                {"name": "name", "kind": "positional", "metavar": "SNAPSHOT_ID"},
+                {"name": "dest", "kind": "positional", "metavar": "OUTPUT_DIR"},
+                {"name": "--help", "kind": "flag", "short": "-h", "type": "boolean"},
+                {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
+                {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},
+            ],
+        },
+    }
+]
+
 
 class SnapApp(BaseApp):
     async def run(self, args: dict, stream: StreamingResult) -> None:
@@ -287,6 +320,7 @@ class SnapApp(BaseApp):
                 CreateSnapshotService
                 | DiffSnapshotsService
                 | ListSnapshotsService
+                | RestoreSnapshotService
                 | SnapshotStatusService
             )
             raw_path = args.get("path")
@@ -314,6 +348,32 @@ class SnapApp(BaseApp):
                 force=args.get("force", False),
             )
             await service.run(stream)
+        elif action == "restore":
+            raw_name = args.get("name")
+            raw_output = args.get("dest")
+            if not raw_name or not raw_output:
+                missing = "name" if not raw_name else "dest"
+                stream.emit(
+                    SyslogMessage(
+                        pri=3,
+                        msgid=MSGID.PAGE_END,
+                        room=room,
+                        msg=f"error: {missing} argument is required",
+                        data={},
+                    )
+                )
+                stream.resolve(
+                    ok=False,
+                    data=SyslogMessage(pri=3, msgid=MSGID.PAGE_END, room=room, msg="", data={}),
+                )
+                return
+            service = RestoreSnapshotService(
+                port=port,
+                room=room,
+                name=str(raw_name),
+                output=str(raw_output),
+            )
+            await service.run(stream)
         elif action == "diff":
             service = DiffSnapshotsService(
                 port=port,
@@ -337,6 +397,9 @@ class SnapApp(BaseApp):
         if action == "create":
             label = "snapshot create"
             items = _CREATE_HELP_ITEMS
+        elif action == "restore":
+            label = "snapshot restore"
+            items = _RESTORE_HELP_ITEMS
         elif action == "diff":
             label = "snapshot diff"
             items = _DIFF_HELP_ITEMS

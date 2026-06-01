@@ -75,6 +75,12 @@ def _build_parser() -> argparse.ArgumentParser:
     create.add_argument("--force", "-f", action="store_true")
     _add_mode_flags(create)
 
+    restore = snap_sub.add_parser("restore", add_help=False, help="Restore a snapshot")
+    restore.add_argument("name", nargs="?", default=None, help="Snapshot ID to restore")
+    restore.add_argument("dest", nargs="?", default=None, help="Output directory")
+    restore.add_argument("--help", "-h", action="store_true", help="Show restore options")
+    _add_mode_flags(restore)
+
     diff = snap_sub.add_parser("diff", add_help=False, help="Compare two snapshots")
     diff.add_argument("--help", "-h", action="store_true", help="Show diff options")
     diff.add_argument("--from", dest="from_snap")
