@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from scop.adapters.runtime_adapter import RuntimeAdapter
-from scop.app.registry.builder import build_default_registry
-from scop.app.stream import StreamingResult
+from scop.app.registry.builder import build_default_registry, build_default_runtime
 from scop.bases import BaseApp
 from scop.ports.runtime_port import RuntimePort
 from scop.ports.stream_port import StreamPort
@@ -17,14 +15,14 @@ class AppDispatcher:
 
     @classmethod
     def default(cls) -> AppDispatcher:
-        return cls(build_default_registry(), RuntimeAdapter())
+        return cls(build_default_registry(), build_default_runtime())
 
     def dispatch(self, command: str, args: dict) -> StreamPort:
         app = self._resolve(command)
         room = None if command == "" else command
         args["_room"] = room
-        stream = StreamingResult(self._runtime)
-        self._runtime.spawn(app.run(args, stream))
+        stream = self._runtime.create_stream()
+        self._runtime.spawn(app.run(args, stream), stream)
         return stream
 
     def _resolve(self, command: str) -> BaseApp:

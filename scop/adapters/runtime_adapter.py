@@ -1,22 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from typing import ClassVar
 
 from scop.bases import Adapter
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.runtime_port import RuntimePort
+from scop.ports.stream_port import StreamPort
 
 
 class RuntimeAdapter(Adapter, RuntimePort):
     port: ClassVar[type[RuntimePort]] = RuntimePort
 
-    def __init__(self) -> None:
+    def __init__(self, stream_factory: Callable[[RuntimeAdapter], StreamPort]) -> None:
+        self._stream_factory = stream_factory
         self._tasks: set[asyncio.Task[object]] = set()
         self._queues: dict[int, asyncio.Queue[SyslogMessage | None]] = {}
         self._results: dict[int, ResolvedResult | None] = {}
         self._next_stream_id = 0
+
+    def create_stream(self) -> StreamPort:
+        return self._stream_factory(self)
 
     def new_stream(self) -> int:
         stream_id = self._next_stream_id
@@ -46,7 +51,8 @@ class RuntimeAdapter(Adapter, RuntimePort):
                 return
             yield event
 
-    def spawn(self, job: Coroutine[object, object, object]) -> None:
+    def spawn(self, job: Coroutine[object, object, object], stream: StreamPort) -> None:
+        _ = stream
         task = asyncio.create_task(job)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
