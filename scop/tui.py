@@ -1,8 +1,10 @@
-"""SCOP §10 consumer — Textual TUI proof of concept.
+"""SCOP §10 consumer — Textual TUI.
 
 Usage:
-    scop [command] | scop-tui
-    scop-tui < events.ndjson
+    scop-tui                          # standalone: loads home page, nav sidebar
+    scop [command] | scop-tui         # pipe mode: render one command's output
+    scop-tui --from events.ndjson     # replay a recorded stream
+    scop-tui --cmd "scop snapshot"    # run a shell command and render it
 
 Routing is mechanical: MSGID family → layout slot (SCOP §10).
 No knowledge of the producing application is required.
@@ -12,15 +14,27 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, ClassVar, TextIO
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer
-from textual.widgets import DataTable, Footer, Header, ProgressBar, RichLog, Static
+from textual.widgets import (
+    DataTable,
+    Footer,
+    Header,
+    Label,
+    ListItem,
+    ListView,
+    ProgressBar,
+    RichLog,
+    Static,
+)
 
 # ── In-flight accumulators ────────────────────────────────────────────────────
 
@@ -36,6 +50,7 @@ class _TableState:
 class _ListState:
     label: str
     ordered: bool
+    room: str | None = None
     items: list[tuple[str, Any]] = field(default_factory=list)
 
 
@@ -55,32 +70,48 @@ class ScopTuiApp(App[None]):
 
     CSS = """
     Horizontal { height: 1fr; }
-    #stats  { width: 25%; border-right: tall $primary; padding: 0 1; }
-    #content { width: 75%; padding: 0 1; }
+    #nav {
+        width: 22;
+        border-right: tall $primary;
+        padding: 0 0;
+    }
+    #nav-header { padding: 0 1; color: $text-muted; text-style: bold; }
+    #stats  { width: 22%; border-right: tall $primary; padding: 0 1; }
+    #content { width: 1fr; padding: 0 1; }
     #activity { height: 8; border-top: tall $primary; }
     .stat { margin-bottom: 1; }
     DataTable { height: auto; }
+    ListView > ListItem { padding: 0 1; }
     """
 
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("q", "quit", "Quit"),
         Binding("tab", "focus_next", "Next Pane"),
         Binding("shift+tab", "focus_previous", "Prev Pane"),
-        Binding("j,down", "cursor_down", "Down"),
-        Binding("k,up", "cursor_up", "Up"),
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
+        Binding("down", "cursor_down", "Down", show=False),
+        Binding("up", "cursor_up", "Up", show=False),
     ]
 
-    def __init__(self, src: TextIO, *, exit_on_eof: bool = False) -> None:
+    def __init__(self, src: TextIO | None = None, *, exit_on_eof: bool = False) -> None:
         super().__init__()
         self._src = src
         self._exit_on_eof = exit_on_eof
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
+        self._nav_cmds: dict[str, list[str]] = {"home": []}
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal():
+            with ScrollableContainer(id="nav"):
+                yield Static("  Pages", id="nav-header")
+                yield ListView(
+                    ListItem(Label("  Home"), id="nav-home"),
+                    id="nav-list",
+                )
             with ScrollableContainer(id="stats"):
                 pass
             with ScrollableContainer(id="content"):
@@ -90,21 +121,58 @@ class ScopTuiApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.run_worker(self._read_stream, thread=True)
+        if self._src is not None:
+            self.run_worker(self._read_stream, thread=True)
+        else:
+            self._navigate([])
+
+    # ── Stream workers ────────────────────────────────────────────────────────
 
     def _read_stream(self) -> None:
+        if self._src is None:
+            return
         for raw in self._src:
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                event: dict[str, Any] = json.loads(raw)
-            except json.JSONDecodeError:
-                self.call_from_thread(self._log, f"[red]bad json:[/red] {raw!r}")
-                continue
-            self.call_from_thread(self._route, event)
+            self._process_line(raw)
         if self._exit_on_eof:
             self.call_from_thread(self.exit)
+
+    def _run_scop(self, args: list[str]) -> None:
+        exe = shutil.which("scop") or "scop"
+        result = subprocess.run(
+            [exe, *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        for raw in io.StringIO(result.stdout):
+            self._process_line(raw)
+
+    def _process_line(self, raw: str) -> None:
+        raw = raw.strip()
+        if not raw:
+            return
+        try:
+            event: dict[str, Any] = json.loads(raw)
+        except json.JSONDecodeError:
+            self.call_from_thread(self._log, f"[red]bad json:[/red] {raw!r}")
+            return
+        self.call_from_thread(self._route, event)
+
+    # ── Navigation ────────────────────────────────────────────────────────────
+
+    def _navigate(self, args: list[str]) -> None:
+        captured = list(args)
+        self.run_worker(lambda: self._run_scop(captured), thread=True)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item_id = event.item.id or ""
+        if not item_id.startswith("nav-"):
+            return
+        key = item_id[4:]  # strip "nav-" prefix
+        args = self._nav_cmds.get(key, [])
+        self._navigate(args)
+
+    # ── Routing ───────────────────────────────────────────────────────────────
 
     def _route(self, event: dict[str, Any]) -> None:
         pri: int = event.get("pri", 6)
@@ -217,6 +285,7 @@ class ScopTuiApp(App[None]):
         self._lists[e["id"]] = _ListState(
             label=e.get("label", e["id"]),
             ordered=e.get("ordered", False),
+            room=e.get("room"),
         )
 
     def list_append(self, e: dict[str, Any]) -> None:
@@ -234,6 +303,21 @@ class ScopTuiApp(App[None]):
         state = self._lists.pop(e["id"], None)
         if not state:
             return
+
+        if e["id"] == "help" and state.room is None:
+            # Home page commands → populate nav sidebar (SCOP §10: actions slot)
+            nav = self.query_one("#nav-list", ListView)
+            for item in list(nav.query("ListItem")):
+                if item.id != "nav-home":
+                    item.remove()
+            self._nav_cmds = {"home": []}
+            for item_id, value in state.items:
+                if isinstance(value, dict):
+                    cmd_str = value.get("command", "")
+                    self._nav_cmds[item_id] = cmd_str.split()
+                    nav.mount(ListItem(Label(f"  {cmd_str}"), id=f"nav-{item_id}"))
+            return
+
         content = self.query_one("#content", ScrollableContainer)
         content.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(state.items, 1):
@@ -324,27 +408,28 @@ _DISPATCH: dict[str, str] = {
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
-def _consume(src: TextIO, *, exit_on_eof: bool = False) -> None:
+def _consume(src: TextIO | None = None, *, exit_on_eof: bool = False) -> None:
     ScopTuiApp(src, exit_on_eof=exit_on_eof).run()
 
 
 def main() -> None:
     """Installed entry point: scop-tui = 'scop.tui:main'"""
-    args = sys.argv[1:]
     if "--help" in sys.argv or "-h" in sys.argv:
         sys.stdout.write(
             "scop-tui — SCOP §10 event stream renderer\n\n"
             "Usage:\n"
-            "  scop [command] | scop-tui\n"
-            "  scop-tui < events.ndjson\n\n"
-            "  scop-tui --from events.ndjson\n"
-            "  scop-tui --cmd \"scop snapshot --list\"\n\n"
-            "Keys: q quit, tab/shift+tab change pane, up/down or j/k move rows\n"
+            "  scop-tui                          # standalone with nav\n"
+            "  scop [command] | scop-tui         # pipe a single command\n"
+            "  scop-tui --from events.ndjson     # replay recorded stream\n"
+            '  scop-tui --cmd "scop snapshot"  # run command directly\n\n'
+            "Keys: q quit  tab/shift+tab change pane  up/down or j/k move rows\n"
         )
         sys.exit(0)
 
+    args = sys.argv[1:]
+
     if len(args) >= 2 and args[0] == "--from":
-        with open(args[1], encoding="utf-8") as f:
+        with Path(args[1]).open(encoding="utf-8") as f:
             _consume(f)
         return
 
@@ -358,8 +443,7 @@ def main() -> None:
         return
 
     if sys.stdin.isatty():
-        sys.stdout.write("Usage: scop [command] | scop-tui\n")
-        sys.exit(0)
+        _consume()
+        return
 
-    # In piped mode stdin carries events, so keyboard control is unavailable.
     _consume(sys.stdin, exit_on_eof=True)
