@@ -153,6 +153,7 @@ class ScopTuiApp(App[None]):
         self._composite_page_end_remaining = 0
         self._form_inputs: dict[str, list[tuple[str, str, str, bool]]] = {}
         self._form_flags: dict[str, list[str]] = {}
+        self._row_actions: dict[str, list[dict[str, Any]]] = {}  # page_key → eligible actions
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -333,6 +334,110 @@ class ScopTuiApp(App[None]):
         key = self._kfromid("page-", event.item.id or "")
         if key:
             self._navigate(key)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        eligible = self._row_actions.get(self._current_key)
+        if not eligible:
+            return
+        self._open_row_detail(str(event.row_key.value), eligible)
+
+    def _open_row_detail(self, row_key: str, actions: list[dict[str, Any]]) -> None:
+        parent = self._page_by_key(self._current_key)
+        if parent is None:
+            return
+
+        safe = row_key.replace("/", "_")
+        detail_key = f"{self._current_key}/{safe}"
+        if detail_key not in self._pages:
+            self._pages[detail_key] = _PageSpec(
+                key=detail_key,
+                label=row_key,
+                base_args=parent.base_args,
+                query_flags=[],
+                parent_key=self._current_key,
+            )
+
+        self._current_key = detail_key
+        self.title = row_key
+        self.sub_title = ""
+        self.query_one("#back-btn", Button).display = True
+        self._sync_nav_highlight()
+
+        main = self.query_one("#main", ScrollableContainer)
+        main.remove_children()
+        self._tables.clear()
+        self._lists.clear()
+        self._procs.clear()
+
+        for action in actions:
+            self._mount_row_action(main, row_key, action)
+
+    def _mount_row_action(
+        self, main: ScrollableContainer, row_key: str, action: dict[str, Any]
+    ) -> None:
+        command = str(action.get("command", ""))
+        description = str(action.get("description", ""))
+        params = action.get("params") or []
+        tokens = command.split()
+        label = tokens[-1].replace("-", " ").title() if tokens else command
+
+        cmd_safe = command.replace(" ", "_")
+        form_key = f"{self._current_key}/{cmd_safe}"
+        self._pages[form_key] = _PageSpec(
+            key=form_key,
+            label=label,
+            base_args=[*tokens, row_key],  # first positional pre-filled
+            query_flags=[],
+            parent_key=self._current_key,
+        )
+        self._form_inputs[form_key] = []
+        self._form_flags[form_key] = []
+
+        main.mount(Static(f"[bold]{label}[/bold]  [dim]{description}[/dim]"))
+        form = Vertical()
+        main.mount(form)
+
+        first_positional = True
+        for idx, p in enumerate(params if isinstance(params, list) else []):
+            if not isinstance(p, dict):
+                continue
+            name = (p.get("name") or "").strip()
+            kind = p.get("kind")
+            if not name or kind not in {"flag", "positional"}:
+                continue
+            required = bool(p.get("required", kind == "positional"))
+            has_default = "default" in p
+
+            if kind == "positional" and first_positional:
+                form.mount(Static(f"  [dim]{name}:[/dim]  [bold]{row_key}[/bold]"))
+                first_positional = False
+                continue
+            first_positional = False
+
+            if not required and not has_default:
+                continue
+            expects_value = (
+                kind == "positional"
+                or p.get("metavar")
+                or has_default
+                or p.get("type") != "boolean"
+            )
+            if not expects_value:
+                self._form_flags[form_key].append(name)
+                continue
+
+            iid = f"finput-{form_key.replace('/', '__')}-{idx}"
+            form.mount(Static(f"  [dim]{name}[/dim]"))
+            form.mount(
+                Input(
+                    value=str(p.get("default", "")),
+                    placeholder=(p.get("metavar") or "value").strip(),
+                    id=iid,
+                )
+            )
+            self._form_inputs[form_key].append((iid, name, kind, required))
+
+        main.mount(Button(label, id=self._kid("form-submit-", form_key), variant="success"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
@@ -614,6 +719,17 @@ class ScopTuiApp(App[None]):
                             run_args = list(current_page.base_args)
                             self.run_worker(lambda a=run_args: self._run_scop(a), thread=True)
                             break
+
+                # Actions whose first param is positional become row-click targets
+                eligible = [
+                    v
+                    for _, v in state.items
+                    if isinstance(v, dict)
+                    and v.get("kind", "action") == "action"
+                    and (v.get("params") or [{}])[0].get("kind") == "positional"
+                ]
+                if eligible:
+                    self._row_actions[current_page.key] = eligible
 
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for _, value in state.items:
