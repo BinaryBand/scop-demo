@@ -108,14 +108,38 @@ _TEMPLATE = """<!DOCTYPE html>
     .tab-page { display: none; }
     .tab-page.active { display: block; }
 
-    .raw-output {
+    .events-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       margin-top: 12px;
+    }
+
+    .event-card {
+      background: #1e1e2e;
+      border-radius: 6px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .event-msgid {
+      display: block;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: #bb86fc;
+      margin-bottom: 8px;
+    }
+
+    .event-json {
       font-family: monospace;
       font-size: 12px;
-      line-height: 1.5;
+      line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-all;
-      color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 0.65);
+      margin: 0;
     }
 
     .bottom-nav {
@@ -156,7 +180,7 @@ _TEMPLATE = """<!DOCTYPE html>
     {% for page in pages %}
     <div id="page-{{ page.key }}" class="tab-page{% if loop.first %} active{% endif %}">
       <h2>{{ page.label }}</h2>
-      <pre class="raw-output">Loading…</pre>
+      <div class="events-container"><span style="opacity:.4">Loading…</span></div>
     </div>
     {% endfor %}
   </main>
@@ -182,12 +206,33 @@ _TEMPLATE = """<!DOCTYPE html>
     async function loadTab(key) {
       if (loaded.has(key)) return;
       loaded.add(key);
-      const pre = document.querySelector(`#page-${key} .raw-output`);
+      const container = document.querySelector(`#page-${key} .events-container`);
       try {
         const res = await fetch(`/api/page/${key}`);
-        pre.textContent = await res.text();
+        const text = await res.text();
+        const fragment = document.createDocumentFragment();
+        for (const line of text.split('\\n')) {
+          if (!line.trim()) continue;
+          let obj;
+          try { obj = JSON.parse(line); } catch (_) { continue; }
+          const card = document.createElement('div');
+          card.className = 'event-card';
+          if (obj.msgid) {
+            const label = document.createElement('span');
+            label.className = 'event-msgid';
+            label.textContent = obj.msgid;
+            card.appendChild(label);
+          }
+          const pre = document.createElement('pre');
+          pre.className = 'event-json';
+          pre.textContent = JSON.stringify(obj, null, 2);
+          card.appendChild(pre);
+          fragment.appendChild(card);
+        }
+        container.textContent = '';
+        container.appendChild(fragment);
       } catch (e) {
-        pre.textContent = `Error: ${e}`;
+        container.textContent = `Error: ${e}`;
       }
     }
 
@@ -222,11 +267,7 @@ def page_data(key: str) -> str:
     for flags in _PAGE_FLAGS:
         try:
             r = subprocess.run(
-                [exe, key, *flags],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
+                [exe, key, *flags], capture_output=True, text=True, encoding="utf-8", check=False
             )
         except OSError:
             r = None
