@@ -410,8 +410,8 @@ class ScopTuiApp(App[None]):
         btn_row = Horizontal(id="row-btn-row")
         main.mount(btn_row)
 
-        for action in actions:
-            self._mount_row_action(main, btn_row, row_key, action)
+        for i, action in enumerate(actions):
+            self._mount_row_action(main, btn_row, row_key, action, primary=(i == 0))
 
         if row_values:
             main.mount(Static(""))
@@ -419,7 +419,13 @@ class ScopTuiApp(App[None]):
                 main.mount(Static(f"[dim]{col}:[/dim]  [bold]{val}[/bold]"))
 
     def _mount_row_action(
-        self, main: ScrollableContainer, btn_row: Horizontal, row_key: str, action: dict[str, Any]
+        self,
+        main: ScrollableContainer,
+        btn_row: Horizontal,
+        row_key: str,
+        action: dict[str, Any],
+        *,
+        primary: bool = False,
     ) -> None:
         command = str(action.get("command", ""))
         params = action.get("params") or []
@@ -489,7 +495,7 @@ class ScopTuiApp(App[None]):
                 )
                 self._form_inputs[form_key].append((iid, name, kind, required))
 
-        variant = "success" if has_remaining else "primary"
+        variant = "primary" if primary else "default"
         btn_row.mount(Button(label, id=self._kid("form-submit-", form_key), variant=variant))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -720,11 +726,6 @@ class ScopTuiApp(App[None]):
             current_page = self._page_by_key(self._current_key)
             if current_page is not None:
                 # CTA buttons for child pages
-                requires_input = {
-                    v.get("command", ""): _action_needs_input(v)
-                    for _, v in state.items
-                    if isinstance(v, dict)
-                }
                 cta_entries = [
                     (p.base_args[-1].replace("-", " ").title() if p.base_args else p.key, p)
                     for p in self._pages.values()
@@ -734,10 +735,8 @@ class ScopTuiApp(App[None]):
                     row = Horizontal(id="cta-row")
                     first = next(iter(main.children), None)
                     main.mount(row, before=first) if first else main.mount(row)
-                    for label, page in cta_entries:
-                        variant = (
-                            "default" if requires_input.get(" ".join(page.base_args)) else "primary"
-                        )
+                    for i, (label, page) in enumerate(cta_entries):
+                        variant = "primary" if i == 0 else "default"
                         row.mount(Button(label, id=self._kid("cta-", page.key), variant=variant))
 
                 # Scope help items to this page's sub-tree when on a sub-page

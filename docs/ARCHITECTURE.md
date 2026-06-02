@@ -275,10 +275,10 @@ classDiagram
 
 ```python
 def dispatch(self, command: str, args: dict) -> StreamPort:
-    app    = self._resolve(command)
-    stream = self._runtime.create_stream()          # RuntimeAdapter injects asyncio.Queue
+    app = self._resolve(command)
+    stream = self._runtime.create_stream()  # RuntimeAdapter injects asyncio.Queue
     self._runtime.spawn(app.run(args, stream), stream)  # RuntimeAdapter calls create_task
-    return stream                                   # cli.py receives StreamPort only
+    return stream  # cli.py receives StreamPort only
 ```
 
 `RuntimeAdapter` is the only place `asyncio` appears outside `cli.py`. It owns the `_tasks` set and the queue construction — nothing in `app/` imports asyncio.
