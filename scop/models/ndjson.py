@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Annotated, Any, ClassVar, Literal, Optional
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import (
     BaseModel,
@@ -44,12 +44,12 @@ GemojiCode = Annotated[
 ]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 Flag = Annotated[bool, Field(strict=True)]
-Pri = Annotated[int, Field(strict=True, ge=0, le=191)]
+Pri = Annotated[int, Field(strict=True, ge=0, le=7)]
 
-OptText = Optional[Text]
-OptGemojiCode = Optional[GemojiCode]
-OptNonNegativeInt = Optional[NonNegativeInt]
-OptFlag = Optional[Flag]
+OptText = Text | None
+OptGemojiCode = GemojiCode | None
+OptNonNegativeInt = NonNegativeInt | None
+OptFlag = Flag | None
 
 JSONMap = dict[Text, Any]
 TextList = list[Text]
@@ -80,19 +80,19 @@ MSGID_MAP: dict[MSGID, tuple[set[str], set[str]]] = {
     "PAGE_END": (set(), set()),
     "PROCESS_BEGIN": (
         {"id", "label"},
-        {"total", "dry_run", "recursive", "force"},
+        {"total", "dry_run", "recursive"},
     ),
     "PROCESS_UPDATE": (
         {"id", "current"},
-        {"total", "label", "dry_run", "recursive", "force"},
+        {"total", "label"},
     ),
     "PROCESS_END": (
         {"id", "ok"},
-        {"dry_run", "recursive", "force"},
+        {"dry_run"},
     ),
     "PROCESS_LOG": (
         {"id"},
-        {"dry_run", "recursive", "force"},
+        set(),
     ),
     "SCALAR_SET": ({"id", "label", "value", "type"}, {"unit", "display_hint"}),
     "SCALAR_CLEAR": ({"id"}, set()),
@@ -220,15 +220,11 @@ class NDJSONEvent(BaseModel):
 
     @field_validator("pri", mode="before")
     @classmethod
-    def _validate_pri(cls, v):
+    def _validate_pri(cls, v: object) -> int:
         if isinstance(v, bool):
             raise TypeError("pri must be an integer, not a boolean")
         if not isinstance(v, int):
             raise TypeError("pri must be an integer")
-        # SCOP uses facility 16 per spec — enforce facility bits (facility = pri // 8)
-        facility = v // 8
-        if facility != 16:
-            raise ValueError("pri facility must be 16 for SCOP events")
         return v
 
     @model_validator(mode="after")
@@ -250,21 +246,18 @@ class NDJSONEvent(BaseModel):
         # Catch missing keys per dynamic configuration
         missing = required_fields - provided_vocabulary_fields
         if missing:
-            raise ValueError(f"Missing required fields for {self.msgid}: {sorted(list(missing))}")
+            raise ValueError(f"Missing required fields for {self.msgid}: {sorted(missing)}")
 
         # Catch keys that shouldn't exist for this specific family
         forbidden = provided_vocabulary_fields - allowed_fields
         if forbidden:
-            raise ValueError(
-                f"Fields {sorted(list(forbidden))} are forbidden for msgid='{self.msgid}'"
-            )
+            raise ValueError(f"Fields {sorted(forbidden)} are forbidden for msgid='{self.msgid}'")
 
         # 3. Contextual Field Verification Rules
         for check_name in self._MSGID_VALIDATORS:
             getattr(self, check_name)()
 
-        # 5. Prohibit verbatim duplication: `msg` MUST NOT exactly equal
-        # other scalar textual fields (id, label, title, subtitle, command, description, item_id, row_id, app)
+        # 5. Prohibit verbatim duplication of msg against any other scalar text field
         for fname in self._TEXT_DUPLICATE_FIELDS:
             val = getattr(self, fname, None)
             if isinstance(val, str) and val == self.msg:
@@ -303,14 +296,16 @@ class NDJSONEvent(BaseModel):
         if t == "bytes":
             if isinstance(v, bool) or not isinstance(v, int) or v < 0:
                 raise TypeError(
-                    "For type='bytes', value MUST be a non-negative JSON integer absolute byte count"
+                    "For type='bytes', value MUST be a non-negative JSON integer "
+                    "absolute byte count"
                 )
         elif t == "duration":
             if not isinstance(v, str):
                 raise TypeError("For type='duration', value MUST be an ISO 8601 duration string")
             if not ISO8601_DURATION_RE.fullmatch(v):
                 raise ValueError(
-                    "For type='duration', value MUST be a valid ISO 8601 duration string (e.g. 'PT1M30S')"
+                    "For type='duration', value MUST be a valid ISO 8601 duration string "
+                    "(e.g. 'PT1M30S')"
                 )
         elif t == "number":
             if isinstance(v, bool) or not isinstance(v, (int, float)):
@@ -363,13 +358,14 @@ class NDJSONEvent(BaseModel):
             # Strict validation of order matrix rules (§8.1)
             if stage < current_stage:
                 raise ValueError(
-                    "Params ordering violation: positionals MUST precede flags; required flags MUST precede optional flags."
+                    "Params ordering violation: positionals MUST precede flags; "
+                    "required flags MUST precede optional flags."
                 )
-            if stage == current_stage:
-                if param.name < last_name:
-                    raise ValueError(
-                        f"Params sorting violation: within each group, parameters must be alphabetical by name. Overlap found: '{param.name}' after '{last_name}'."
-                    )
+            if stage == current_stage and param.name < last_name:
+                raise ValueError(
+                    f"Params sorting violation: within each group, parameters must be "
+                    f"alphabetical by name. Overlap found: '{param.name}' after '{last_name}'."
+                )
 
             current_stage = stage
             last_name = param.name

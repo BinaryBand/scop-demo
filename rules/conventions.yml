@@ -269,6 +269,9 @@ rule:
           - pattern: "class $NAME($$$, StrEnum): $$$"
           - pattern: "class $NAME(IntEnum): $$$"
           - pattern: "class $NAME(Flag): $$$"
+          - pattern: "class $NAME(BaseModel): $$$"
+          - pattern: "class $NAME(BaseModel, $$$): $$$"
+          - pattern: "class $NAME($$$, BaseModel): $$$"
 files:
   - "scop/models/**/*.py"
 ---

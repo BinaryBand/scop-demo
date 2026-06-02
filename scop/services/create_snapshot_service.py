@@ -35,8 +35,6 @@ class CreateSnapshotService(Service):
             begin["dry_run"] = True
         if self._recursive:
             begin["recursive"] = True
-        if self._force:
-            begin["force"] = True
         stream.emit(
             SyslogMessage(
                 pri=6,
@@ -60,7 +58,6 @@ class CreateSnapshotService(Service):
                         "id": "snap",
                         "current": current,
                         "total": file_total,
-                        "phase": "list" if listing else "hash",
                     },
                 )
             )
@@ -91,20 +88,13 @@ class CreateSnapshotService(Service):
                 msgid=MSGID.PROCESS_LOG,
                 room=r,
                 msg=f"wrote {snap.name} ({snap.files} files, {snap.size})",
-                data={
-                    "id": "snap",
-                    "message": f"wrote {snap.name} ({snap.files} files, {snap.size})",
-                },
+                data={"id": "snap"},
             )
         )
 
         end: dict = {"id": "snap", "ok": True}
         if dr:
             end["dry_run"] = True
-        if self._recursive:
-            end["recursive"] = True
-        if self._force:
-            end["force"] = True
         stream.emit(
             SyslogMessage(
                 pri=6,

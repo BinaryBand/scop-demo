@@ -148,10 +148,9 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
                 continue
             if msgid_name == "PROCESS_UPDATE" and proc_id in bars:
                 bar = bars[proc_id]
-                phase = data.get("phase", "hash")
                 current = int(data.get("current", 0))
                 raw_total = data.get("total")
-                if phase == "list":
+                if raw_total == 0 or (raw_total is None and bar.total is None):
                     bar.set_description(f"Scanning ({current} found)")
                     bar.refresh()
                 else:
