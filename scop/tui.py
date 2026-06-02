@@ -25,6 +25,7 @@ from typing import Any, ClassVar, TextIO
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
     DataTable,
@@ -79,6 +80,31 @@ def _action_needs_input(item: dict[str, Any]) -> bool:
     return False
 
 
+# ── Error modal ───────────────────────────────────────────────────────────────
+
+
+class _ErrorModal(ModalScreen[None]):
+    """Blocking overlay for SCOP pri 0-3 (EMERG / ALERT / CRIT / ERR)."""
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("escape,enter,space", "dismiss_modal", show=False)]
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="error-modal-box"):
+            yield Static("[bold red]Error[/bold red]")
+            yield Static(self._message)
+            yield Button("Dismiss", variant="error", id="error-dismiss")
+
+    def on_button_pressed(self, _event: Button.Pressed) -> None:
+        self.dismiss()
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss()
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
 
 
@@ -100,6 +126,11 @@ class ScopTuiApp(App[None]):
     #action-form SelectionList { height: auto; max-height: 12; margin: 0 0 1 0; }
     #activity { height: 8; border-top: tall $primary; display: none; }
     DataTable { height: auto; }
+    _ErrorModal { align: center middle; }
+    #error-modal-box { background: $surface; border: tall $error; padding: 1 2; width: auto;
+                       max-width: 60; height: auto; }
+    #error-modal-box Static { margin-bottom: 1; }
+    #error-dismiss { width: auto; }
     """
 
     BINDINGS: ClassVar[list[Binding]] = [
@@ -417,10 +448,10 @@ class ScopTuiApp(App[None]):
     def _route(self, event: dict[str, Any]) -> None:
         pri: int = event.get("pri", 6)
         if pri <= 3:
-            self._log(f"[bold red]ERROR[/bold red] {event.get('msg', '')}")
+            self.push_screen(_ErrorModal(event.get("msg", "")))
             return
         if pri == 4:
-            self._log(f"[yellow]WARNING[/yellow] {event.get('msg', '')}")
+            self.notify(event.get("msg", ""), severity="warning")
             return
         handler = _DISPATCH.get(event.get("msgid", ""))
         if handler is None:
