@@ -32,7 +32,29 @@ def _form_params(config: AppConfig) -> list[dict]:
             "name": "--skip-dirs",
             "kind": "flag",
             "metavar": "CSV",
-            "default": ", ".join(snap.skip_dirs),
+            "default": ",".join(snap.skip_dirs),
+            "input_type": "multi",
+            "options": list(snap.skip_dirs)
+            + [
+                o
+                for o in (
+                    "__pycache__",
+                    "node_modules",
+                    "dist",
+                    "build",
+                    "target",
+                    ".pytest_cache",
+                    ".mypy_cache",
+                    ".ruff_cache",
+                    ".tox",
+                    ".venv",
+                    "venv",
+                    ".eggs",
+                    "coverage",
+                    ".coverage",
+                )
+                if o not in snap.skip_dirs
+            ],
         },
     ]
 

@@ -38,6 +38,7 @@ from textual.widgets import (
     ProgressBar,
     RichLog,
     Select,
+    SelectionList,
     Static,
 )
 
@@ -120,6 +121,7 @@ class ScopTuiApp(App[None]):
     #action-form { height: auto; margin-bottom: 1; }
     #action-form Input { margin: 0 0 1 0; }
     #action-form Select { margin: 0 0 1 0; height: 3; }
+    #action-form SelectionList { margin: 0 0 1 0; height: auto; max-height: 12; }
     #action-form Button { width: auto; }
     #activity { height: 8; border-top: tall $primary; display: none; }
     .stat { margin-bottom: 1; }
@@ -438,13 +440,17 @@ class ScopTuiApp(App[None]):
             for input_id, param_name, param_kind, param_required in self._form_inputs_by_page.get(
                 form_key, []
             ):
-                select_widget = next(self.query(f"#{input_id}").results(Select), None)
-                if select_widget is not None:
-                    raw = select_widget.value
-                    value = "" if raw is Select.BLANK else str(raw)
+                multi_widget = next(self.query(f"#{input_id}").results(SelectionList), None)
+                if multi_widget is not None:
+                    value = ",".join(str(v) for v in multi_widget.selected)
                 else:
-                    field = next(self.query(f"#{input_id}").results(Input), None)
-                    value = field.value.strip() if field is not None else ""
+                    select_widget = next(self.query(f"#{input_id}").results(Select), None)
+                    if select_widget is not None:
+                        raw = select_widget.value
+                        value = "" if raw is Select.BLANK else str(raw)
+                    else:
+                        field = next(self.query(f"#{input_id}").results(Input), None)
+                        value = field.value.strip() if field is not None else ""
                 if not value:
                     if param_required:
                         missing.append(param_name)
@@ -495,7 +501,7 @@ class ScopTuiApp(App[None]):
         if not isinstance(raw_params, list):
             return False
 
-        input_rows: list[tuple[str, str, str, str, str | None, str | None, str]] = []
+        input_rows: list[tuple[str, str, str, str, str | None, str | None, str, list[str]]] = []
         mounted_any = False
 
         for idx, raw_param in enumerate(raw_params):
@@ -541,6 +547,7 @@ class ScopTuiApp(App[None]):
                 metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
             )
             default_val = str(param.get("default", ""))
+            options: list[str] = [str(o) for o in param.get("options", []) if o]
             input_rows.append((
                 input_id,
                 name,
@@ -549,6 +556,7 @@ class ScopTuiApp(App[None]):
                 select_from,
                 input_type,
                 default_val,
+                options,
             ))
             self._form_inputs_by_page[current_page.key].append((input_id, name, kind, required))
             mounted_any = True
@@ -568,9 +576,20 @@ class ScopTuiApp(App[None]):
             select_from,
             input_type,
             default_val,
+            options,
         ) in input_rows:
             form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
-            if isinstance(select_from, str) and select_from.strip():
+            if input_type == "multi":
+                selected = {s.strip() for s in default_val.split(",") if s.strip()}
+                # Preserve any custom entries from default not in options list
+                all_opts = list(options) + [s for s in selected if s not in options]
+                form_box.mount(
+                    SelectionList(
+                        *[(opt, opt, opt in selected) for opt in all_opts],
+                        id=input_id,
+                    )
+                )
+            elif isinstance(select_from, str) and select_from.strip():
                 form_box.mount(Select([], id=input_id, prompt=f"Choose {placeholder}…"))
                 select_args = shlex.split(select_from.strip())
                 self.run_worker(

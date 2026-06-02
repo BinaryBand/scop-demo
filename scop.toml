@@ -58,7 +58,7 @@ name = "--skip-dirs"
 kind = "flag"
 type = "string"
 metavar = "CSV"
-default = "__pycache__, node_modules, dist, build, target, .pytest_cache, .mypy_cache, .ruff_cache, .tox"
+default = "__pycache__,node_modules,dist,.mypy_cache,.ruff_cache,.tox"
 
 [[room]]
 id = "snapshot"
