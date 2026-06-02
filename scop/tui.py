@@ -137,8 +137,8 @@ class ScopTuiApp(App[None]):
     #nav { width: 20; border-right: tall $primary; }
     #right { width: 1fr; }
     #back-btn { margin: 0 1; width: auto; display: none; }
-    #cta-row { height: auto; margin-bottom: 1; }
-    #cta-row Button { margin-right: 1; }
+    #cta-row, #row-btn-row { height: auto; margin-bottom: 1; }
+    #cta-row Button, #row-btn-row Button { margin-right: 1; }
     #main { height: 1fr; padding: 0 1; }
     #action-form { height: auto; margin-bottom: 1; }
     #action-form Input { margin: 0 0 1 0; }
@@ -399,9 +399,11 @@ class ScopTuiApp(App[None]):
         self._procs.clear()
 
         main.mount(Static(f"[bold]{row_key}[/bold]"))
+        btn_row = Horizontal(id="row-btn-row")
+        main.mount(btn_row)
 
         for action in actions:
-            self._mount_row_action(main, row_key, action)
+            self._mount_row_action(main, btn_row, row_key, action)
 
         if row_values:
             main.mount(Static(""))
@@ -409,10 +411,9 @@ class ScopTuiApp(App[None]):
                 main.mount(Static(f"[dim]{col}:[/dim]  [bold]{val}[/bold]"))
 
     def _mount_row_action(
-        self, main: ScrollableContainer, row_key: str, action: dict[str, Any]
+        self, main: ScrollableContainer, btn_row: Horizontal, row_key: str, action: dict[str, Any]
     ) -> None:
         command = str(action.get("command", ""))
-        description = str(action.get("description", ""))
         params = action.get("params") or []
         tokens = command.split()
         label = tokens[-1].replace("-", " ").title() if tokens else command
@@ -445,8 +446,6 @@ class ScopTuiApp(App[None]):
             and i != subject_idx
             for i, p in enumerate(params)
         )
-
-        main.mount(Static(f"[bold]{label}[/bold]  [dim]{description}[/dim]"))
 
         if has_remaining:
             form = Vertical()
@@ -483,7 +482,7 @@ class ScopTuiApp(App[None]):
                 self._form_inputs[form_key].append((iid, name, kind, required))
 
         variant = "success" if has_remaining else "primary"
-        main.mount(Button(label, id=self._kid("form-submit-", form_key), variant=variant))
+        btn_row.mount(Button(label, id=self._kid("form-submit-", form_key), variant=variant))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
