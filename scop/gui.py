@@ -111,9 +111,100 @@ _TEMPLATE = """<!DOCTYPE html>
     .events-container {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
       margin-top: 12px;
     }
+
+    /* ── Table ─────────────────────────────────────────────── */
+
+    .scop-table-wrap {
+      background: #1e1e2e;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .scop-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .scop-table th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: rgba(255, 255, 255, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .scop-table td {
+      padding: 10px 16px;
+      color: rgba(255, 255, 255, 0.87);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .scop-table tbody tr:last-child td { border-bottom: none; }
+
+    .scop-table tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    /* ── List ──────────────────────────────────────────────── */
+
+    .scop-list {
+      background: #1e1e2e;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .scop-list-item {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .scop-list-item:last-child { border-bottom: none; }
+
+    .scop-list-primary {
+      font-size: 13px;
+      font-family: monospace;
+      color: rgba(255, 255, 255, 0.87);
+    }
+
+    .scop-list-secondary {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 2px;
+    }
+
+    /* ── Scalars ───────────────────────────────────────────── */
+
+    .scop-scalars {
+      background: #1e1e2e;
+      border-radius: 6px;
+      padding: 4px 0;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .scop-scalar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      padding: 8px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .scop-scalars .scop-scalar-row:last-child { border-bottom: none; }
+
+    .scop-scalar-label { color: rgba(255, 255, 255, 0.5); }
+    .scop-scalar-value { color: rgba(255, 255, 255, 0.87); font-weight: 500; }
+
+    /* ── Fallback card ─────────────────────────────────────── */
 
     .event-card {
       background: #1e1e2e;
@@ -201,6 +292,159 @@ _TEMPLATE = """<!DOCTYPE html>
       mdc.ripple.MDCRipple.attachTo(el);
     });
 
+    // ── Component builders ───────────────────────────────────
+
+    function mkTable(label, schema, rows) {
+      const wrap = document.createElement('div');
+      wrap.className = 'scop-table-wrap';
+      const table = document.createElement('table');
+      table.className = 'scop-table';
+      const thead = document.createElement('thead');
+      const hr = document.createElement('tr');
+      schema.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.toUpperCase();
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      rows.forEach(vals => {
+        const tr = document.createElement('tr');
+        schema.forEach(col => {
+          const td = document.createElement('td');
+          td.textContent = vals[col] ?? '';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      return wrap;
+    }
+
+    function mkList(items) {
+      const wrap = document.createElement('div');
+      wrap.className = 'scop-list';
+      items.forEach(item => {
+        const li = document.createElement('div');
+        li.className = 'scop-list-item';
+        const primary = document.createElement('div');
+        primary.className = 'scop-list-primary';
+        const secondary = document.createElement('div');
+        secondary.className = 'scop-list-secondary';
+        if (item && typeof item === 'object') {
+          primary.textContent = item.command ?? item.label ?? JSON.stringify(item);
+          secondary.textContent = item.description ?? '';
+        } else {
+          primary.textContent = String(item);
+        }
+        li.appendChild(primary);
+        if (secondary.textContent) li.appendChild(secondary);
+        wrap.appendChild(li);
+      });
+      return wrap;
+    }
+
+    function mkScalars(evts) {
+      const wrap = document.createElement('div');
+      wrap.className = 'scop-scalars';
+      evts.forEach(ev => {
+        const row = document.createElement('div');
+        row.className = 'scop-scalar-row';
+        const lbl = document.createElement('span');
+        lbl.className = 'scop-scalar-label';
+        lbl.textContent = ev.label ?? ev.id ?? '';
+        const val = document.createElement('span');
+        val.className = 'scop-scalar-value';
+        val.textContent = ev.unit ? `${ev.value} ${ev.unit}` : String(ev.value ?? '');
+        row.appendChild(lbl);
+        row.appendChild(val);
+        wrap.appendChild(row);
+      });
+      return wrap;
+    }
+
+    function mkCard(ev) {
+      const card = document.createElement('div');
+      card.className = 'event-card';
+      if (ev.msgid) {
+        const lbl = document.createElement('span');
+        lbl.className = 'event-msgid';
+        lbl.textContent = ev.msgid;
+        card.appendChild(lbl);
+      }
+      const pre = document.createElement('pre');
+      pre.className = 'event-json';
+      pre.textContent = JSON.stringify(ev, null, 2);
+      card.appendChild(pre);
+      return card;
+    }
+
+    // ── State-machine renderer ────────────────────────────────
+
+    const SKIP = new Set(['PAGE_BEGIN','PAGE_END','TABLE_END','LIST_END','TABLE_UPDATE']);
+
+    function renderEvents(ndjson) {
+      const evts = [];
+      for (const line of ndjson.split('\\n')) {
+        if (!line.trim()) continue;
+        try { evts.push(JSON.parse(line)); } catch (_) {}
+      }
+
+      const nodes = [];
+      let scalars = [];
+      let i = 0;
+
+      const flushScalars = () => {
+        if (scalars.length) { nodes.push(mkScalars(scalars)); scalars = []; }
+      };
+
+      while (i < evts.length) {
+        const ev = evts[i];
+        const m = ev.msgid;
+
+        if (m === 'TABLE_DECLARE') {
+          flushScalars();
+          const schema = ev.schema ?? [];
+          const rows = [];
+          i++;
+          while (i < evts.length && evts[i].msgid === 'TABLE_ROW' && evts[i].id === ev.id) {
+            rows.push(evts[i].values ?? {});
+            i++;
+          }
+          nodes.push(mkTable(ev.label ?? ev.id, schema, rows));
+
+        } else if (m === 'LIST_DECLARE') {
+          flushScalars();
+          const items = [];
+          i++;
+          while (i < evts.length && evts[i].msgid === 'LIST_APPEND' && evts[i].id === ev.id) {
+            items.push(evts[i].value);
+            i++;
+          }
+          nodes.push(mkList(items));
+
+        } else if (m === 'SCALAR_SET') {
+          scalars.push(ev);
+          i++;
+
+        } else if (SKIP.has(m)) {
+          i++;
+
+        } else {
+          flushScalars();
+          nodes.push(mkCard(ev));
+          i++;
+        }
+      }
+
+      flushScalars();
+      return nodes;
+    }
+
+    // ── Tab loading ───────────────────────────────────────────
+
     const loaded = new Set();
 
     async function loadTab(key) {
@@ -209,28 +453,11 @@ _TEMPLATE = """<!DOCTYPE html>
       const container = document.querySelector(`#page-${key} .events-container`);
       try {
         const res = await fetch(`/api/page/${key}`);
-        const text = await res.text();
-        const fragment = document.createDocumentFragment();
-        for (const line of text.split('\\n')) {
-          if (!line.trim()) continue;
-          let obj;
-          try { obj = JSON.parse(line); } catch (_) { continue; }
-          const card = document.createElement('div');
-          card.className = 'event-card';
-          if (obj.msgid) {
-            const label = document.createElement('span');
-            label.className = 'event-msgid';
-            label.textContent = obj.msgid;
-            card.appendChild(label);
-          }
-          const pre = document.createElement('pre');
-          pre.className = 'event-json';
-          pre.textContent = JSON.stringify(obj, null, 2);
-          card.appendChild(pre);
-          fragment.appendChild(card);
-        }
+        const nodes = renderEvents(await res.text());
         container.textContent = '';
-        container.appendChild(fragment);
+        const frag = document.createDocumentFragment();
+        nodes.forEach(n => frag.appendChild(n));
+        container.appendChild(frag);
       } catch (e) {
         container.textContent = `Error: ${e}`;
       }
