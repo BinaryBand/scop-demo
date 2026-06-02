@@ -365,6 +365,16 @@ class ScopTuiApp(App[None]):
         if parent is None:
             return
 
+        # Capture row values from table state before it gets cleared
+        row_values: dict[str, Any] = {}
+        for tstate in self._tables.values():
+            for rid, vals in tstate.rows:
+                if rid == row_key:
+                    row_values = {k: v for k, v in vals.items() if k != "name"}
+                    break
+            if row_values:
+                break
+
         safe = row_key.replace("/", "_")
         detail_key = f"{self._current_key}/{safe}"
         if detail_key not in self._pages:
@@ -388,8 +398,15 @@ class ScopTuiApp(App[None]):
         self._lists.clear()
         self._procs.clear()
 
+        main.mount(Static(f"[bold]{row_key}[/bold]"))
+
         for action in actions:
             self._mount_row_action(main, row_key, action)
+
+        if row_values:
+            main.mount(Static(""))
+            for col, val in row_values.items():
+                main.mount(Static(f"[dim]{col}:[/dim]  [bold]{val}[/bold]"))
 
     def _mount_row_action(
         self, main: ScrollableContainer, row_key: str, action: dict[str, Any]
@@ -405,7 +422,6 @@ class ScopTuiApp(App[None]):
             return
         subject_idx, subject_p = hit
         subject_kind = subject_p.get("kind")
-        subject_name = str(subject_p.get("name", "")).lstrip("-")
 
         # Bake subject into base_args; positionals go bare, flags go as --name value
         if subject_kind == "positional":
@@ -431,7 +447,6 @@ class ScopTuiApp(App[None]):
         )
 
         main.mount(Static(f"[bold]{label}[/bold]  [dim]{description}[/dim]"))
-        main.mount(Static(f"  [dim]{subject_name}:[/dim]  [bold]{row_key}[/bold]"))
 
         if has_remaining:
             form = Vertical()
