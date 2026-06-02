@@ -1,7 +1,7 @@
 # Structured CLI Output Protocol (SCOP)
 
-**Version:** 0.1.2-draft  
-**Status:** Draft Specification  
+**Version:** 0.1.2-draft
+**Status:** Draft Specification
 **License:** CC0 1.0 Universal (Public Domain)
 
 ---
@@ -37,13 +37,13 @@ SCOP is a composition, not a replacement:
 
 ## 2. Terminology
 
-**Producer** — a SCOP-conforming CLI application that emits events.  
-**Consumer** — software that reads a SCOP event stream and renders it.  
-**Event** — a single NDJSON line emitted by a producer.  
-**Stream** — the ordered sequence of events from one command invocation.  
-**MSGID** — a string identifier classifying an event by its data type (§7).  
-**Room** — a page context derived from the subcommand path (§6).  
-**Page** — a GUI display unit corresponding to one room, assembled from one or more streams.  
+**Producer** — a SCOP-conforming CLI application that emits events.
+**Consumer** — software that reads a SCOP event stream and renders it.
+**Event** — a single NDJSON line emitted by a producer.
+**Stream** — the ordered sequence of events from one command invocation.
+**MSGID** — a string identifier classifying an event by its data type (§7).
+**Room** — a page context derived from the subcommand path (§6).
+**Page** — a GUI display unit corresponding to one room, assembled from one or more streams.
 **Slot** — a named region in a page layout; events are routed to slots by MSGID family.
 
 ---
@@ -65,14 +65,14 @@ SCOP is a composition, not a replacement:
 
 ### 4.1 POSIX.1 and GNU
 
-Applications SHOULD conform to POSIX.1 Utility Syntax Guidelines (Chapter 12): single-hyphen short options (`-f`), `--` to end option processing, operands following options. Applications SHOULD implement GNU standard flags; each flag's event contract is defined in §8.
+Applications SHOULD conform to POSIX.1 Utility Syntax Guidelines (Chapter 12): single-hyphen short options (`-f`), `--` to end option processing, operands following options. Applications SHOULD implement GNU standard flags with defined contracts; each flag's event contract is defined in §8. Flags marked † have no defined contract yet.
 
 | Flag          | Short | Category |
 | ------------- | ----- | -------- |
 | `--help`      | `-h`  | query    |
-| `--version`   | `-`   | query    |
+| `--version`   |       | query    |
 | `--list`      | `-l`  | query    |
-| `--status`    | `-`   | query    |
+| `--status`    |       | query    |
 | `--all`       | `-a`  | mode     |
 | `--quiet`     | `-q`  | mode     |
 | `--verbose`   | `-v`  | mode     |
@@ -99,7 +99,7 @@ Every SCOP event is a serialised RFC 5424 message.
 
 **Optional:** `ts` (ISO 8601 timestamp), `app` (application name), `pid` (process id).
 
-## Severity → GUI rendering
+#### Severity → GUI rendering
 
 | Severity | Value | Rendering                        |
 | -------- | ----- | -------------------------------- |
@@ -152,7 +152,7 @@ All MSGIDs are grouped into families by data type. Consumers route events to GUI
 
 ### 7.1 PAGE — Page Frame
 
-Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END`. `PAGE_END.msg` SHOULD be empty.
+Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END`. `PAGE_END.msg` SHOULD be empty. If stdout closes or the process exits before `PAGE_END` is received, consumers MUST synthesize a terminal error state from any partial content already received — consumers MUST NOT remain in an indeterminate loading state (see §11).
 
 | MSGID        | Required        | Optional                     |
 | ------------ | --------------- | ---------------------------- |
@@ -163,10 +163,10 @@ The `icon` field, when present, MUST be a GitHub gemoji code of the form `:name:
 
 The `intent` field declares how the consumer MUST integrate this stream into the current view. If omitted, consumers MUST treat it as `"query"`.
 
-| `intent` value | Consumer behaviour                                                                                              |
-| -------------- | --------------------------------------------------------------------------------------------------------------- |
-| `"query"`      | Build or replace the page view. All slots are updated. Used for `--status`, `--list`, `--help`, and navigation. |
-| `"action"`     | An operation is running. Route `PROCESS_*` events to the activity slot only. All other slots remain intact.     |
+| `intent` value | Consumer behaviour                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| `"query"`      | Build or replace the page view. All slots updated. Used for --status, --list, --help, navigation. |
+| `"action"`     | An operation is running. Route PROCESS\_\* to activity slot only. All other slots remain intact.  |
 
 ```json
 {"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "intent": "query", "msg": "=== Snapshots ==="}
@@ -200,14 +200,14 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 **Serialization of abstract types:**
 
 - `bytes` — `value` MUST be a JSON integer representing the absolute byte count (e.g. `12582912`). The `unit` field SHOULD carry the display denomination (e.g. `"bytes"`, `"KB"`, `"MB"`); formatting is the consumer's responsibility.
-- `duration` — `value` MUST be an ISO 8601 duration string (e.g. `"PT1M30S"`). Raw integers MUST NOT be used; the unit is ambiguous without the format.
+- `duration` — `value` MUST be ISO 8601 duration string (e.g. PT1M30S). Raw integers MUST NOT be used — unit is ambiguous without the format.
 
 | MSGID          | Required                       | Optional               |
 | -------------- | ------------------------------ | ---------------------- |
 | `SCALAR_SET`   | `id`, `label`, `value`, `type` | `unit`, `display_hint` |
 | `SCALAR_CLEAR` | `id`                           |                        |
 
-`display_hint` is OPTIONAL and advisory; consumers MAY ignore it. Defined values: `"badge"`. Producers MUST NOT use `display_hint` values not defined in this spec.
+`display_hint` is OPTIONAL and advisory; consumers MAY ignore it. Defined values: `"badge"`. Producers MUST NOT use values not defined in this spec.
 
 ```json
 {"pri": 6, "msgid": "SCALAR_SET", "room": "snapshot", "id": "tracked", "label": "Tracked files", "value": 1042, "type": "number", "unit": "files", "msg": "Tracked files: 1042 files"}
@@ -261,7 +261,7 @@ Query flags produce data output and exit. Each response MUST be wrapped in `PAGE
 
 **`--help` / `-h`**
 
-```proto
+```text
 PAGE_BEGIN (room: current, title: command name, intent: "query")
 LIST_DECLARE (id: "help", ordered: false)
 LIST_APPEND ×n (value: help-item object — see schema below)
@@ -327,31 +327,31 @@ PAGE_END
 
 **`--version`**
 
-```proto
-PAGE_BEGIN (room: null, title: app name)
+```text
+PAGE_BEGIN (room: null, title: app name, intent: "query")
 SCALAR_SET (id: "version", type: "string", value: semver)
 PAGE_END
 ```
 
 **`--status`**
 
-```proto
-PAGE_BEGIN (room: current, title: context name)
+```text
+PAGE_BEGIN (room: current, title: context name, intent: "query")
 SCALAR_SET ×n
 PAGE_END
 ```
 
 **`--list` / `-l`**
 
-```proto
-PAGE_BEGIN (room: current, title: context name)
+```text
+PAGE_BEGIN (room: current, title: context name, intent: "query")
 TABLE_DECLARE → TABLE_ROW ×n → TABLE_END   (items have named fields)
   OR
 LIST_DECLARE → LIST_APPEND ×n → LIST_END   (items are scalar)
 PAGE_END
 ```
 
-> **Tiebreaker rule:** use `TABLE` when items have two or more named fields (i.e. the producer would naturally model them as a struct or dict row); use `LIST` when items are scalars or single-value strings. When in doubt, `TABLE` with a single-column schema is valid.
+Use `TABLE` when items have two or more named fields (i.e. the producer would naturally model them as a struct or dict row); use `LIST` when items are scalars or single-value strings. When in doubt, `TABLE` with a single-column schema is valid.
 
 ### 8.2 Mode Flags
 
@@ -360,7 +360,7 @@ Mode flags adjust which events are emitted. They produce no events of their own.
 | Flag               | Effect                                                                                                                                                                                        |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--quiet` / `-q`   | MUST suppress `PROCESS_LOG` and `PROCESS_UPDATE`. MUST NOT suppress `PAGE_BEGIN`, `PAGE_END`, `PROCESS_BEGIN`, `PROCESS_END`, `SCALAR_SET`, `LIST_*`, `TABLE_*`, or any event with `pri ≤ 4`. |
-| `--verbose` / `-v` | MUST include `pri = 7` events                                                                                                                                                                 |
+| `--verbose` / `-v` | MUST include `pri = 7` (DEBUG) events (suppressed by default; see §4.2)                                                                                                                       |
 | `--all` / `-a`     | MUST expand scope of `LIST` and `TABLE` output                                                                                                                                                |
 
 ### 8.3 Process Modifier Flags
@@ -379,7 +379,7 @@ Modifier flags annotate `PROCESS_*` events with additional fields. No new MSGIDs
 
 A room that implements all three query flags can be fully described by those calls. A consumer that makes all three has everything needed to render a complete page without app-specific code.
 
-```proto
+```text
 ourapp [subcommand] --status   →  page chrome + stats
 ourapp [subcommand] --list     →  content
 ourapp [subcommand] --help     →  actions
@@ -387,13 +387,13 @@ ourapp [subcommand] --help     →  actions
 
 **Slot map:**
 
-| Slot        | Flag        | MSGID              | GUI rendering         |
-| ----------- | ----------- | ------------------ | --------------------- |
-| Page chrome | any         | `PAGE_BEGIN`       | title, subtitle, icon |
-| Stats       | `--status`  | `SCALAR_SET`       | stat cards            |
-| Content     | `--list`    | `TABLE` or `LIST`  | grid, list            |
-| Actions     | `--help`    | `LIST` (id="help") | buttons, palette      |
-| Activity    | any command | `PROCESS_*`        | progress, spinner     |
+| Slot        | Flag        | MSGID                 | GUI rendering            |
+| ----------- | ----------- | --------------------- | ------------------------ |
+| Page chrome | any         | `PAGE_BEGIN`          | title, subtitle, icon    |
+| Stats       | `--status`  | `SCALAR_SET`          | stat cards               |
+| Content     | `--list`    | `TABLE_*` or `LIST_*` | grid, list               |
+| Actions     | `--help`    | `LIST_*` (id="help")  | buttons, command palette |
+| Activity    | any command | `PROCESS_*`           | progress, spinner        |
 
 > **Routing note:** the `intent` field on `PAGE_BEGIN` — not the triggering flag — is the consumer's actual routing discriminant. `"query"` updates or replaces the page; `"action"` opens an activity overlay leaving all other slots intact. See §10 for the full routing table.
 
@@ -418,15 +418,15 @@ Each call is independent. A page MAY be built from a subset.
 {"pri": 6, "msgid": "TABLE_ROW", "room": "snapshot", "id": "snaps", "row_id": "s1", "values": {"name": "snap-001", "files": 42, "size": "1.2MB", "date": "2026-05-30"}, "msg": "snap-001  42 files  1.2MB  2026-05-30"}
 {"pri": 6, "msgid": "TABLE_END", "room": "snapshot", "id": "snaps", "msg": "1 snapshot"}
 {"pri": 6, "msgid": "LIST_DECLARE", "room": "snapshot", "id": "help", "label": "Commands", "ordered": false, "msg": "Commands"}
-{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help", "item_id": "create", "value": {"command": "snapshot create", "description": "Take a new snapshot"}, "msg": "  create    Take a new snapshot"}
-{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help", "item_id": "diff", "value": {"command": "snapshot diff", "description": "Compare two snapshots"}, "msg": "  diff      Compare two snapshots"}
+{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help", "item_id": "create", "value": {"command": "snapshot create", "description": "Take a new snapshot", "kind": "action"}, "msg": "  create    Take a new snapshot"}
+{"pri": 6, "msgid": "LIST_APPEND", "room": "snapshot", "id": "help", "item_id": "diff", "value": {"command": "snapshot diff", "description": "Compare two snapshots", "kind": "action"}, "msg": "  diff      Compare two snapshots"}
 {"pri": 6, "msgid": "LIST_END", "room": "snapshot", "id": "help", "msg": ""}
 {"pri": 6, "msgid": "PAGE_END", "room": "snapshot", "msg": ""}
 ```
 
 **CLI output** (msg fields only):
 
-```proto
+```text
 === Snapshots ===
 Tracked files: 1042
 Last snapshot: 2026-05-30T14:32:00Z
@@ -456,10 +456,10 @@ A conforming consumer routes events using this table. No application knowledge i
 | `PROCESS_*`                                          | activity indicator    | progress bar or spinner                                               |
 | `PAGE_END` where `intent: "query"`                   | end of stream         | slot update complete; page remains visible                            |
 | `PAGE_END` where `intent: "action"`                  | end of stream         | close activity overlay                                                |
-| `pri` 0-3                                            | error modal           | blocking                                                              |
+| `pri` 0–3                                            | error modal           | blocking                                                              |
 | `pri` 4                                              | warning banner        | non-blocking                                                          |
-| `pri` 5-6                                            | log area              | append                                                                |
-| `pri` 7                                              | suppressed            | unless `--verbose`                                                    |
+| `pri` 5–6                                            | log area              | append                                                                |
+| `pri` 7                                              | suppressed            | see §8.2                                                              |
 
 Unknown MSGIDs MUST be routed to the log area using `msg`. Unknown fields MUST be ignored.
 
@@ -469,13 +469,13 @@ Consumers MUST maintain independent slot state per `id` for `PROCESS_*` events. 
 
 ## 11. Conformance
 
-**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help`, `--version`, `--status`, and `--list` per §8.1. If a room has no data for `--status` or `--list`, the producer MUST emit a well-formed empty page (`PAGE_BEGIN` + `SCALAR_SET` with `id="page.empty"` + `PAGE_END`) rather than exiting with a non-zero status.
+**Producer MUST:** emit NDJSON to stdout; include `pri`, `msgid`, `room`, `msg` in every event; ensure `msg` is a complete human-readable line; wrap every stream in `PAGE_BEGIN` / `PAGE_END`; derive `room` from the subcommand path (§6); use only MSGIDs defined in §7; implement `--help`, `--version`, `--status`, and `--list` per §8.1; emit a well-formed empty page (`PAGE_BEGIN` + `SCALAR_SET` with `id="page.empty"` + `PAGE_END`) when a room has no data for `--status` or `--list`, rather than exiting with a non-zero status; encode all output as UTF-8.
 
-**Producer SHOULD:** implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3); include `intent` on every `PAGE_BEGIN` — `"query"` for discovery flag streams (`--help`, `--status`, `--list`), `"action"` for command execution streams; design rooms such that `--status` and `--list` are invocable without positional arguments. Rooms SHOULD NOT encode runtime entity identifiers in their room path; entity context is a runtime parameter, not a room identifier.
+**Producer SHOULD:** implement `--quiet`, `--verbose` (§8.2); implement `--dry-run` (§8.3); include `intent` on every `PAGE_BEGIN` — `"query"` for discovery flag streams (`--help`, `--status`, `--list`), `"action"` for command execution streams; design rooms such that `--status` and `--list` are invocable without positional arguments; NOT encode runtime entity identifiers in their room path; entity context is a runtime parameter, not a room identifier.
 
-**Consumer MUST:** parse NDJSON line-by-line; route events per §10 using the `intent` field on `PAGE_BEGIN`; render `msg` as fallback for unknown MSGIDs; ignore unknown MSGIDs and fields without error; map RFC 5424 severity per §4.2; if stdout closes or the process exits before `PAGE_END` is received, synthesise a terminal error state using any partial content and severity already received — a consumer MUST NOT remain in an indeterminate loading state.
+**Consumer MUST:** parse NDJSON line-by-line; route events per §10 using the `intent` field on `PAGE_BEGIN`; render `msg` as fallback for unknown MSGIDs; ignore unknown MSGIDs and fields without error; map RFC 5424 severity per §4.2; synthesize a terminal error state using any partial content received if stdout closes or the process exits before `PAGE_END` — MUST NOT remain in an indeterminate loading state; NOT suppress `dry_run: true` annotations; sanitize string values before rendering in HTML or injection-sensitive contexts.
 
-**Consumer SHOULD:** implement the three-flag protocol (§9); support optional slots (§9).
+**Consumer SHOULD:** implement the three-flag protocol (§9); support optional slots (§9); implement stream size limits.
 
 ---
 
