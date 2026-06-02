@@ -11,28 +11,28 @@ from scop.services.config_status_service import ConfigStatusService
 
 
 def _form_params(config: AppConfig) -> list[dict]:
-    """Build the help-item params with current values as metavar placeholders."""
+    """Build help-item params with current values as pre-populated defaults."""
     snap = config.snapshot
     return [
         {
             "name": "--store-dir",
             "kind": "flag",
-            "metavar": snap.store_dir,
-            "required": True,
+            "metavar": "PATH",
+            "default": snap.store_dir,
             "input_type": "path",
         },
         {
             "name": "--objects-dir",
             "kind": "flag",
-            "metavar": snap.objects_dir,
-            "required": True,
+            "metavar": "PATH",
+            "default": snap.objects_dir,
             "input_type": "path",
         },
         {
             "name": "--skip-dirs",
             "kind": "flag",
-            "metavar": ", ".join(snap.skip_dirs),
-            "required": True,
+            "metavar": "CSV",
+            "default": ", ".join(snap.skip_dirs),
         },
     ]
 

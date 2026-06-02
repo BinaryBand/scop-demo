@@ -151,7 +151,7 @@ class ScopTuiApp(App[None]):
         self._composite_active = False
         self._composite_page_started = False
         self._composite_page_end_remaining = 0
-        self._form_inputs_by_page: dict[str, list[tuple[str, str, str]]] = {}
+        self._form_inputs_by_page: dict[str, list[tuple[str, str, str, bool]]] = {}
         self._form_auto_flags_by_page: dict[str, list[str]] = {}
         self._ensure_page(
             _PageSpec(
@@ -435,7 +435,9 @@ class ScopTuiApp(App[None]):
             args.extend(self._form_auto_flags_by_page.get(form_key, []))
 
             missing: list[str] = []
-            for input_id, param_name, param_kind in self._form_inputs_by_page.get(form_key, []):
+            for input_id, param_name, param_kind, param_required in self._form_inputs_by_page.get(
+                form_key, []
+            ):
                 select_widget = next(self.query(f"#{input_id}").results(Select), None)
                 if select_widget is not None:
                     raw = select_widget.value
@@ -444,8 +446,9 @@ class ScopTuiApp(App[None]):
                     field = next(self.query(f"#{input_id}").results(Input), None)
                     value = field.value.strip() if field is not None else ""
                 if not value:
-                    missing.append(param_name)
-                    continue
+                    if param_required:
+                        missing.append(param_name)
+                    continue  # skip empty optional fields silently
                 if param_kind == "positional":
                     args.append(value)
                 else:
@@ -492,7 +495,7 @@ class ScopTuiApp(App[None]):
         if not isinstance(raw_params, list):
             return False
 
-        input_rows: list[tuple[str, str, str, str, str | None, str | None]] = []
+        input_rows: list[tuple[str, str, str, str, str | None, str | None, str]] = []
         mounted_any = False
 
         for idx, raw_param in enumerate(raw_params):
@@ -510,7 +513,9 @@ class ScopTuiApp(App[None]):
                 continue
 
             required = bool(param.get("required", kind == "positional"))
-            if not required:
+            has_default = "default" in param
+            # Include the field if it's required OR has a default value to pre-populate.
+            if not required and not has_default:
                 continue
 
             param_type = param.get("type")
@@ -518,6 +523,7 @@ class ScopTuiApp(App[None]):
             expects_value = (
                 kind == "positional"
                 or (isinstance(metavar, str) and bool(metavar.strip()))
+                or has_default
                 or param_type != "boolean"
             )
 
@@ -534,8 +540,17 @@ class ScopTuiApp(App[None]):
             placeholder = (
                 metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
             )
-            input_rows.append((input_id, name, short_text, placeholder, select_from, input_type))
-            self._form_inputs_by_page[current_page.key].append((input_id, name, kind))
+            default_val = str(param.get("default", ""))
+            input_rows.append((
+                input_id,
+                name,
+                short_text,
+                placeholder,
+                select_from,
+                input_type,
+                default_val,
+            ))
+            self._form_inputs_by_page[current_page.key].append((input_id, name, kind, required))
             mounted_any = True
 
         if not mounted_any:
@@ -545,7 +560,15 @@ class ScopTuiApp(App[None]):
         main.mount(form_box)
         form_box.mount(Static("[bold]Required Inputs[/bold]"))
 
-        for input_id, name, short_text, placeholder, select_from, input_type in input_rows:
+        for (
+            input_id,
+            name,
+            short_text,
+            placeholder,
+            select_from,
+            input_type,
+            default_val,
+        ) in input_rows:
             form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
             if isinstance(select_from, str) and select_from.strip():
                 form_box.mount(Select([], id=input_id, prompt=f"Choose {placeholder}…"))
@@ -556,10 +579,15 @@ class ScopTuiApp(App[None]):
                 )
             elif input_type == "path":
                 form_box.mount(
-                    Input(placeholder=placeholder, id=input_id, suggester=_PathSuggester())
+                    Input(
+                        value=default_val,
+                        placeholder=placeholder,
+                        id=input_id,
+                        suggester=_PathSuggester(),
+                    )
                 )
             else:
-                form_box.mount(Input(placeholder=placeholder, id=input_id))
+                form_box.mount(Input(value=default_val, placeholder=placeholder, id=input_id))
 
         return True
 

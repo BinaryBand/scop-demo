@@ -6,18 +6,6 @@ version = "0.1.0"
 description = "File and directory snapshotter"
 scop_version = "0.1.2-draft"
 
-[[app.global_param]]
-name = "--quiet"
-kind = "flag"
-type = "boolean"
-short = "-q"
-
-[[app.global_param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
-
 [[room]]
 id = ""
 title = "scop"
@@ -55,22 +43,22 @@ kind = "action"
 name = "--store-dir"
 kind = "flag"
 type = "string"
-metavar = "downloads/snapshots"
-required = true
+metavar = "PATH"
+default = "downloads/snapshots"
 
 [[room.command.param]]
 name = "--objects-dir"
 kind = "flag"
 type = "string"
-metavar = "downloads/objects"
-required = true
+metavar = "PATH"
+default = "downloads/objects"
 
 [[room.command.param]]
 name = "--skip-dirs"
 kind = "flag"
 type = "string"
-metavar = "__pycache__, node_modules, dist, build, target, .pytest_cache, .mypy_cache, .ruff_cache, .tox"
-required = true
+metavar = "CSV"
+default = "__pycache__, node_modules, dist, build, target, .pytest_cache, .mypy_cache, .ruff_cache, .tox"
 
 [[room]]
 id = "snapshot"
@@ -127,10 +115,22 @@ short = "-o"
 metavar = "FILE"
 
 [[room.command.param]]
+name = "--quiet"
+kind = "flag"
+type = "boolean"
+short = "-q"
+
+[[room.command.param]]
 name = "--recursive"
 kind = "flag"
 type = "boolean"
 short = "-r"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
 
 [[room.command]]
 name = "Restore"
@@ -149,6 +149,18 @@ name = "dest"
 kind = "positional"
 type = "string"
 metavar = "OUTPUT_DIR"
+
+[[room.command.param]]
+name = "--quiet"
+kind = "flag"
+type = "boolean"
+short = "-q"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
 
 [[room.command]]
 name = "Diff"
@@ -177,6 +189,18 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
+
+[[room.command.param]]
+name = "--quiet"
+kind = "flag"
+type = "boolean"
+short = "-q"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
 
 [[room]]
 id = "snapshot/diff"
@@ -209,3 +233,15 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
+
+[[room.command.param]]
+name = "--quiet"
+kind = "flag"
+type = "boolean"
+short = "-q"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
