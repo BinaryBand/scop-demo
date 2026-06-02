@@ -675,7 +675,7 @@ class ScopTuiApp(App[None]):
                 cta_entries = [
                     (p.base_args[-1].replace("-", " ").title() if p.base_args else p.key, p)
                     for p in self._pages.values()
-                    if p.parent_key == current_page.key
+                    if p.parent_key == current_page.key and p.key in self._page_order
                 ]
                 if cta_entries:
                     row = Horizontal(id="cta-row")
