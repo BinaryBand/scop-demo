@@ -217,6 +217,6 @@ __marimo__/
 
 # Private project files
 .vscode/settings.json
-config/**/.*
+static/**/.*
 docs/**/.*
 docs/TODO

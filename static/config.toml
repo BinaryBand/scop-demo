@@ -1,0 +1,15 @@
+[snapshot]
+store_dir = "downloads/snapshots"
+objects_dir = "downloads/objects"
+skip_dirs = [
+	"__pycache__",
+	"node_modules",
+	"dist",
+	"build",
+	"target",
+	".pytest_cache",
+	".mypy_cache",
+	".ruff_cache",
+	".tox",
+]
+

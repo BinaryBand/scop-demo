@@ -6,13 +6,12 @@ The goal is to focus on best-practice recommendations that genuinely reduce deci
 
 ## Standards
 
-Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.0-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP.md`.
+Source's I/O layer implements **SCOP (Structured CLI Output Protocol) v0.1.2-draft** — an open specification for structured CLI output that is simultaneously human-readable as plain text and automatically translatable to GUI. See `SCOP.md`.
 
 | Document | Implements |
 | --- | --- |
 | Wire Format (this doc) | SCOP §5 |
 | Event vocabulary (`SCOP.md` §7) | SCOP §7 |
-| CLI Contract (`CLI_CONTRACT.md`) | SCOP §§6, 8, 9 |
 
 ## Dependency Diagram
 
@@ -344,4 +343,4 @@ Implements **SCOP §5**. `SyslogMessage` events are serialised as **NDJSON** —
 > `msg` must be a complete, human-readable line on its own — a plain `cat` of stdout must always be readable.
 > `room` is derived from the subcommand path — never declared explicitly (SCOP §6).
 > All other fields are RFC 5424 `STRUCTURED-DATA`.
-> Full vocabulary: `SCOP.md` §7. Page template and flag contracts: `CLI_CONTRACT.md`.
+> Full vocabulary: `SCOP.md` §7.

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import tomllib
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,13 +15,9 @@ from scop.bases import Adapter
 from scop.models.snapshot import DiffRecord, SnapshotRecord, SnapshotStats
 from scop.ports.snapshot_port import SnapshotPort
 
-_STORE = Path("downloads") / "snapshots"
-_OBJECTS = Path("downloads") / "objects"  # content-addressable blob store
-
-# Directories pruned before descent regardless of hidden-file rules.
-# These are generated/dependency trees: large, reproducible, not worth snapshotting.
-# A future .scopignore will make this configurable per-project.
-_SKIP_DIRS = frozenset({
+_DEFAULT_STORE_DIR = "downloads/snapshots"
+_DEFAULT_OBJECTS_DIR = "downloads/objects"
+_DEFAULT_SKIP_DIRS = frozenset({
     "__pycache__",
     "node_modules",
     "dist",
@@ -31,6 +28,42 @@ _SKIP_DIRS = frozenset({
     ".ruff_cache",
     ".tox",
 })
+
+
+def _load_snapshot_config() -> tuple[Path, Path, frozenset[str]]:
+    root = Path(__file__).resolve().parents[2]
+    config_path = root / "static" / "config.toml"
+    if not config_path.exists():
+        return Path(_DEFAULT_STORE_DIR), Path(_DEFAULT_OBJECTS_DIR), _DEFAULT_SKIP_DIRS
+
+    payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    snapshot = payload.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return Path(_DEFAULT_STORE_DIR), Path(_DEFAULT_OBJECTS_DIR), _DEFAULT_SKIP_DIRS
+
+    store_dir = snapshot.get("store_dir")
+    objects_dir = snapshot.get("objects_dir")
+    skip_dirs = snapshot.get("skip_dirs")
+
+    store = (
+        Path(store_dir) if isinstance(store_dir, str) and store_dir else Path(_DEFAULT_STORE_DIR)
+    )
+    objects = (
+        Path(objects_dir)
+        if isinstance(objects_dir, str) and objects_dir
+        else Path(_DEFAULT_OBJECTS_DIR)
+    )
+
+    skip: set[str] = set(_DEFAULT_SKIP_DIRS)
+    if isinstance(skip_dirs, list):
+        skip = {value for value in skip_dirs if isinstance(value, str) and value}
+        if not skip:
+            skip = set(_DEFAULT_SKIP_DIRS)
+
+    return store, objects, frozenset(skip)
+
+
+_STORE, _OBJECTS, _SKIP_DIRS = _load_snapshot_config()
 
 
 def _fmt_size(n: int) -> str:
