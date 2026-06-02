@@ -30,14 +30,14 @@ poetry run scop snapshot --status               # same as above
 poetry run scop snapshot --list                 # list all snapshots as a table
 poetry run scop snapshot --list --all           # include older snapshots
 poetry run scop snapshot --help                 # available snapshot commands
-```sdfdsf
+```
 
 ### `snapshot create`
 
 ```sh
 poetry run scop snapshot create                 # take a new snapshot
-poetry run scop snapshot create --dry-run       # preview without writing
-poetry run scop snapshot create --verbose       # include debug-level log events
+poetry run scop snapshot create . --dry-run     # preview without writing
+poetry run scop snapshot create . --verbose     # include debug-level log events
 ```
 
 ### `snapshot diff`

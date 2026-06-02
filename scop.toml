@@ -12,12 +12,6 @@ kind = "flag"
 type = "boolean"
 short = "-q"
 
-[[app.global_param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
-
 [[room]]
 id = ""
 title = "scop"
@@ -29,6 +23,48 @@ exec = "snapshot"
 description = "Manage snapshots"
 kind = "group"
 navigates = "snapshot"
+
+[[room.command]]
+name = "Config"
+exec = "config"
+description = "Application configuration"
+kind = "group"
+navigates = "config"
+
+[[room]]
+id = "config"
+title = "Config"
+subtitle = "Application configuration"
+
+[[room.command]]
+name = "Get"
+exec = "config get"
+description = "Show a config value"
+kind = "action"
+
+[[room.command.param]]
+name = "key"
+kind = "positional"
+type = "string"
+metavar = "KEY"
+
+[[room.command]]
+name = "Set"
+exec = "config set"
+description = "Update a config value"
+kind = "action"
+
+[[room.command.param]]
+name = "key"
+kind = "positional"
+type = "string"
+metavar = "KEY"
+
+[[room.command.param]]
+name = "value"
+kind = "positional"
+type = "string"
+metavar = "VALUE"
 
 [[room]]
 id = "snapshot"
@@ -90,6 +126,12 @@ kind = "flag"
 type = "boolean"
 short = "-r"
 
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
+
 [[room.command]]
 name = "Restore"
 exec = "snapshot restore"
@@ -107,6 +149,12 @@ name = "dest"
 kind = "positional"
 type = "string"
 metavar = "OUTPUT_DIR"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
 
 [[room.command]]
 name = "Diff"
@@ -135,6 +183,12 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
 
 [[room]]
 id = "snapshot/diff"
@@ -167,3 +221,9 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
+
+[[room.command.param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"

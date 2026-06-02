@@ -92,6 +92,25 @@ def _build_parser() -> argparse.ArgumentParser:
     diff.add_argument("--to", dest="to_snap")
     _add_mode_flags(diff)
 
+    config = sub.add_parser("config", add_help=False, help="Application configuration")
+    config.add_argument("--help", "-h", action="store_true", help="Show config commands")
+    _add_mode_flags(config)
+
+    config_sub = config.add_subparsers(dest="config_action")
+
+    cfg_get = config_sub.add_parser("get", add_help=False, help="Show a config value")
+    cfg_get.add_argument(
+        "key", nargs="?", default=None, help="Config key (e.g. snapshot.store_dir)"
+    )
+    cfg_get.add_argument("--help", "-h", action="store_true")
+    _add_mode_flags(cfg_get)
+
+    cfg_set = config_sub.add_parser("set", add_help=False, help="Update a config value")
+    cfg_set.add_argument("key", nargs="?", default=None, help="Config key")
+    cfg_set.add_argument("value", nargs="?", default=None, help="New value")
+    cfg_set.add_argument("--help", "-h", action="store_true")
+    _add_mode_flags(cfg_set)
+
     return p
 
 
@@ -171,13 +190,17 @@ async def _render(stream: _StreamLike, *, verbose: bool, quiet: bool, out: IO[st
 
 def _resolve_command(args: dict) -> str:
     command = args.pop("command")
-    if command != "snapshot":
-        return "" if command is None else str(command)
-
-    action = args.pop("snapshot_action", None)
-    if action is not None:
-        args["action"] = action
-    return "snapshot"
+    if command == "snapshot":
+        action = args.pop("snapshot_action", None)
+        if action is not None:
+            args["action"] = action
+        return "snapshot"
+    if command == "config":
+        action = args.pop("config_action", None)
+        if action is not None:
+            args["action"] = action
+        return "config"
+    return "" if command is None else str(command)
 
 
 # ── Entry points ──────────────────────────────────────────────────────────────
