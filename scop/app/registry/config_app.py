@@ -1,47 +1,44 @@
 from __future__ import annotations
 
-from typing import Any, cast
-
 from scop.adapters.config_adapter import ConfigAdapter
 from scop.bases import BaseApp
+from scop.models.config import AppConfig
 from scop.models.protocol import MSGID, SyslogMessage
+from scop.ports.config_port import ConfigPort
 from scop.ports.streaming_result import StreamingResult
-from scop.services.config_set_service import ConfigSetService
 from scop.services.config_show_service import ConfigShowService
 from scop.services.config_status_service import ConfigStatusService
 
-_HELP_ITEMS = [
-    {
-        "item_id": "config get",
-        "value": {
-            "command": "config get",
-            "description": "Show a config value",
-            "kind": "action",
-            "params": [
-                {"name": "key", "kind": "positional", "metavar": "KEY"},
-                {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
-            ],
+
+def _form_params(config: AppConfig) -> list[dict]:
+    """Build the help-item params with current values as metavar placeholders."""
+    snap = config.snapshot
+    return [
+        {
+            "name": "--store-dir",
+            "kind": "flag",
+            "metavar": snap.store_dir,
+            "required": True,
+            "input_type": "path",
         },
-    },
-    {
-        "item_id": "config set",
-        "value": {
-            "command": "config set",
-            "description": "Update a config value",
-            "kind": "action",
-            "params": [
-                {"name": "key", "kind": "positional", "metavar": "KEY"},
-                {"name": "value", "kind": "positional", "metavar": "VALUE"},
-                {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
-            ],
+        {
+            "name": "--objects-dir",
+            "kind": "flag",
+            "metavar": snap.objects_dir,
+            "required": True,
+            "input_type": "path",
         },
-    },
-]
+        {
+            "name": "--skip-dirs",
+            "kind": "flag",
+            "metavar": ", ".join(snap.skip_dirs),
+            "required": True,
+        },
+    ]
 
 
 class ConfigApp(BaseApp):
     async def run(self, args: dict, stream: StreamingResult) -> None:
-        action = args.get("action")
         room = "config"
 
         stream.emit(
@@ -58,78 +55,77 @@ class ConfigApp(BaseApp):
             )
         )
 
-        port = ConfigAdapter()
+        port: ConfigPort = ConfigAdapter()
 
-        if args.get("help"):
-            self._emit_help(stream, room)
-        elif action == "get":
-            key = args.get("key")
-            service: ConfigShowService | ConfigSetService | ConfigStatusService = ConfigShowService(
-                port=port, room=room, key=str(key) if key else None
-            )
-            await service.run(stream)
-        elif action == "set":
-            raw_key = args.get("key")
-            raw_val = args.get("value")
-            if not raw_key or not raw_val:
-                missing = "key" if not raw_key else "value"
-                stream.emit(
-                    SyslogMessage(
-                        pri=3,
-                        msgid=MSGID.PAGE_END,
-                        room=room,
-                        msg=f"error: {missing} argument is required",
-                        data={},
+        # Collect update flags — any provided flag updates that key.
+        updates: dict[str, str] = {}
+        if args.get("store_dir"):
+            updates["snapshot.store_dir"] = str(args["store_dir"])
+        if args.get("objects_dir"):
+            updates["snapshot.objects_dir"] = str(args["objects_dir"])
+        if args.get("skip_dirs"):
+            updates["snapshot.skip_dirs"] = str(args["skip_dirs"])
+
+        if updates:
+            for key, value in updates.items():
+                try:
+                    port.set_value(key, value)
+                except ValueError as exc:
+                    stream.emit(
+                        SyslogMessage(
+                            pri=4,
+                            msgid=MSGID.SCALAR_SET,
+                            room=room,
+                            msg=str(exc),
+                            data={
+                                "id": "error",
+                                "label": "error",
+                                "value": str(exc),
+                                "type": "string",
+                            },
+                        )
                     )
-                )
-                stream.resolve(
-                    ok=False,
-                    data=SyslogMessage(pri=3, msgid=MSGID.PAGE_END, room=room, msg="", data={}),
-                )
-                return
-            service = ConfigSetService(port=port, room=room, key=str(raw_key), value=str(raw_val))
-            await service.run(stream)
-        elif args.get("status"):
-            service = ConfigStatusService(port=port, room=room)
-            await service.run(stream)
+                    self._end(stream, room, ok=False)
+                    return
+            await ConfigStatusService(port=port, room=room).run(stream)
+        elif args.get("help"):
+            self._emit_help(stream, room, port)
         elif args.get("list"):
-            service = ConfigShowService(port=port, room=room)
-            await service.run(stream)
+            await ConfigShowService(port=port, room=room).run(stream)
         else:
-            # Default: show scalars so plain `scop config` is still informative.
-            service = ConfigStatusService(port=port, room=room)
-            await service.run(stream)
+            await ConfigStatusService(port=port, room=room).run(stream)
 
-        end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=room, msg="")
-        stream.emit(end)
-        stream.resolve(ok=True, data=end)
+        self._end(stream, room, ok=True)
 
-    def _emit_help(self, stream: StreamingResult, room: str) -> None:
+    def _emit_help(self, stream: StreamingResult, room: str, port: ConfigPort) -> None:
+        config = port.load()
         stream.emit(
             SyslogMessage(
                 pri=6,
                 msgid=MSGID.LIST_DECLARE,
                 room=room,
-                msg="Commands",
-                data={"id": "help", "label": "config", "ordered": False},
+                msg="Configuration",
+                data={"id": "help", "label": "Configuration", "ordered": False},
             )
         )
-        for item in _HELP_ITEMS:
-            raw_value = item["value"]
-            if not isinstance(raw_value, dict):
-                continue
-            value = cast(dict[str, Any], raw_value)
-            command = value.get("command", "")
-            description = value.get("description", "")
-            stream.emit(
-                SyslogMessage(
-                    pri=6,
-                    msgid=MSGID.LIST_APPEND,
-                    room=room,
-                    msg=f"  {command:<24}{description}",
-                    data={"id": "help", "item_id": item["item_id"], "value": value},
-                )
+        stream.emit(
+            SyslogMessage(
+                pri=6,
+                msgid=MSGID.LIST_APPEND,
+                room=room,
+                msg="config",
+                data={
+                    "id": "help",
+                    "item_id": "config",
+                    "value": {
+                        "command": "config",
+                        "description": "Update configuration",
+                        "kind": "action",
+                        "params": _form_params(config),
+                    },
+                },
             )
+        )
         stream.emit(
             SyslogMessage(
                 pri=6,
@@ -139,3 +135,9 @@ class ConfigApp(BaseApp):
                 data={"id": "help"},
             )
         )
+
+    @staticmethod
+    def _end(stream: StreamingResult, room: str, *, ok: bool) -> None:
+        end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=room, msg="")
+        stream.emit(end)
+        stream.resolve(ok=ok, data=end)

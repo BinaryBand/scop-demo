@@ -93,25 +93,18 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_mode_flags(diff)
 
     config = sub.add_parser("config", add_help=False, help="Application configuration")
-    config.add_argument("--help", "-h", action="store_true", help="Show config commands")
-    config.add_argument("--status", action="store_true", help="Show config as key-value scalars")
+    config.add_argument("--help", "-h", action="store_true", help="Show config form")
     config.add_argument("--list", "-l", action="store_true", help="Show config as a table")
-    _add_mode_flags(config)
-
-    config_sub = config.add_subparsers(dest="config_action")
-
-    cfg_get = config_sub.add_parser("get", add_help=False, help="Show a config value")
-    cfg_get.add_argument(
-        "key", nargs="?", default=None, help="Config key (e.g. snapshot.store_dir)"
+    config.add_argument(
+        "--store-dir", dest="store_dir", metavar="PATH", help="Snapshot store directory"
     )
-    cfg_get.add_argument("--help", "-h", action="store_true")
-    _add_mode_flags(cfg_get)
-
-    cfg_set = config_sub.add_parser("set", add_help=False, help="Update a config value")
-    cfg_set.add_argument("key", nargs="?", default=None, help="Config key")
-    cfg_set.add_argument("value", nargs="?", default=None, help="New value")
-    cfg_set.add_argument("--help", "-h", action="store_true")
-    _add_mode_flags(cfg_set)
+    config.add_argument(
+        "--objects-dir", dest="objects_dir", metavar="PATH", help="Object store directory"
+    )
+    config.add_argument(
+        "--skip-dirs", dest="skip_dirs", metavar="CSV", help="Comma-separated dirs to skip"
+    )
+    _add_mode_flags(config)
 
     return p
 
@@ -198,9 +191,6 @@ def _resolve_command(args: dict) -> str:
             args["action"] = action
         return "snapshot"
     if command == "config":
-        action = args.pop("config_action", None)
-        if action is not None:
-            args["action"] = action
         return "config"
     return "" if command is None else str(command)
 

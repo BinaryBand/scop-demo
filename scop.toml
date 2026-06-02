@@ -12,6 +12,12 @@ kind = "flag"
 type = "boolean"
 short = "-q"
 
+[[app.global_param]]
+name = "--verbose"
+kind = "flag"
+type = "boolean"
+short = "-v"
+
 [[room]]
 id = ""
 title = "scop"
@@ -36,53 +42,35 @@ id = "config"
 title = "Config"
 subtitle = "Application configuration"
 
-[[room.stat]]
-id = "snapshot.store_dir"
-label = "Snapshot store"
-type = "string"
-
-[[room.stat]]
-id = "snapshot.objects_dir"
-label = "Object store"
-type = "string"
-
-[[room.stat]]
-id = "snapshot.skip_dirs"
-label = "Skipped dirs"
-type = "string"
-
 [room.list]
 schema = ["key", "value"]
 
 [[room.command]]
-name = "Get"
-exec = "config get"
-description = "Show a config value"
+name = "Config"
+exec = "config"
+description = "Update configuration"
 kind = "action"
 
 [[room.command.param]]
-name = "key"
-kind = "positional"
+name = "--store-dir"
+kind = "flag"
 type = "string"
-metavar = "KEY"
-
-[[room.command]]
-name = "Set"
-exec = "config set"
-description = "Update a config value"
-kind = "action"
+metavar = "downloads/snapshots"
+required = true
 
 [[room.command.param]]
-name = "key"
-kind = "positional"
+name = "--objects-dir"
+kind = "flag"
 type = "string"
-metavar = "KEY"
+metavar = "downloads/objects"
+required = true
 
 [[room.command.param]]
-name = "value"
-kind = "positional"
+name = "--skip-dirs"
+kind = "flag"
 type = "string"
-metavar = "VALUE"
+metavar = "__pycache__, node_modules, dist, build, target, .pytest_cache, .mypy_cache, .ruff_cache, .tox"
+required = true
 
 [[room]]
 id = "snapshot"
@@ -144,12 +132,6 @@ kind = "flag"
 type = "boolean"
 short = "-r"
 
-[[room.command.param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
-
 [[room.command]]
 name = "Restore"
 exec = "snapshot restore"
@@ -167,12 +149,6 @@ name = "dest"
 kind = "positional"
 type = "string"
 metavar = "OUTPUT_DIR"
-
-[[room.command.param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
 
 [[room.command]]
 name = "Diff"
@@ -201,12 +177,6 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
-
-[[room.command.param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
 
 [[room]]
 id = "snapshot/diff"
@@ -239,9 +209,3 @@ kind = "flag"
 type = "string"
 short = "-o"
 metavar = "FILE"
-
-[[room.command.param]]
-name = "--verbose"
-kind = "flag"
-type = "boolean"
-short = "-v"
