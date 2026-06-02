@@ -144,7 +144,7 @@ class ScopTuiApp(App[None]):
         super().__init__()
         self._src = src
         self._exit_on_eof = exit_on_eof
-        self._current_key: str = "home"
+        self._current_key: str = ""
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
         self._procs: dict[str, _ProcessState] = {}
@@ -155,15 +155,6 @@ class ScopTuiApp(App[None]):
         self._composite_page_end_remaining = 0
         self._form_inputs_by_page: dict[str, list[tuple[str, str, str, bool]]] = {}
         self._form_auto_flags_by_page: dict[str, list[str]] = {}
-        self._ensure_page(
-            _PageSpec(
-                key="home",
-                label="Home",
-                base_args=[],
-                query_flags=[["--version"], ["--help"]],
-                parent_key=None,
-            )
-        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -190,8 +181,8 @@ class ScopTuiApp(App[None]):
         self._refresh_nav_menu()
         if self._src is not None:
             self.run_worker(self._read_stream, thread=True)
-        else:
-            self._navigate("home")
+        elif self._page_order:
+            self._navigate(self._page_order[0])
 
     # ── Stream workers ────────────────────────────────────────────────────────
 
@@ -314,9 +305,6 @@ class ScopTuiApp(App[None]):
             return None
 
         key = "/".join(subcommands)
-        if key == "home":
-            return None
-
         depth = len(subcommands) - 1
         title = subcommands[-1].replace("-", " ").title()
         label = f"{'  ' * depth}{title}"
@@ -424,7 +412,7 @@ class ScopTuiApp(App[None]):
         if button_id == "back-btn":
             current = self._page_by_key(self._current_key)
             parent_key = current.parent_key if current else None
-            self._navigate(parent_key or "home")
+            self._navigate(parent_key or self._page_order[0])
             return
 
         form_key = self._key_from_form_submit_id(button_id)
@@ -1003,7 +991,7 @@ def main() -> None:
             "  scop [command] | scop-tui         # pipe a single command\n"
             "  scop-tui --from events.ndjson     # replay recorded stream\n"
             '  scop-tui --cmd "scop snapshot"    # run command directly\n\n'
-            "Keys: q quit  tab/shift+tab pane  up/down or j/k rows  ← Back home\n"
+            "Keys: q quit  tab/shift+tab pane  up/down or j/k rows  ← Back\n"
         )
         sys.exit(0)
 
