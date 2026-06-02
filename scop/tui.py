@@ -76,6 +76,18 @@ class _PageSpec:
     parent_key: str | None = None
 
 
+def _action_needs_input(item: dict[str, Any]) -> bool:
+    """Return True if any param in the action requires user input (no default supplied)."""
+    for param in item.get("params") or []:
+        if not isinstance(param, dict):
+            continue
+        kind = param.get("kind")
+        required = param.get("required", kind == "positional")
+        if required and "default" not in param:
+            return True
+    return False
+
+
 # ── Path autocomplete ─────────────────────────────────────────────────────────
 
 
@@ -796,6 +808,14 @@ class ScopTuiApp(App[None]):
                     )
                     cta_entries.append((cta_label, page))
 
+            # Build a quick lookup: command_key → whether it has required user inputs.
+            requires_input: dict[str, bool] = {}
+            for _, item_val in state.items:
+                if not isinstance(item_val, dict):
+                    continue
+                cmd = item_val.get("command", "")
+                requires_input[cmd] = _action_needs_input(item_val)
+
             cta_slot = self.query_one("#cta-slot", Vertical)
             cta_slot.remove_children()
             if cta_entries:
@@ -803,9 +823,9 @@ class ScopTuiApp(App[None]):
                 cta_row = Horizontal(id="cta-row")
                 cta_slot.mount(cta_row)
                 for label, page in cta_entries:
-                    cta_row.mount(
-                        Button(label, id=self._cta_id_for_key(page.key), variant="primary")
-                    )
+                    cmd_key = " ".join(page.base_args)
+                    variant = "default" if requires_input.get(cmd_key) else "primary"
+                    cta_row.mount(Button(label, id=self._cta_id_for_key(page.key), variant=variant))
 
         render_items = state.items
         if e["id"] == "help":
