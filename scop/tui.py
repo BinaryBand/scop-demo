@@ -80,6 +80,25 @@ def _action_needs_input(item: dict[str, Any]) -> bool:
     return False
 
 
+def _row_subject_param(action: dict[str, Any]) -> tuple[int, dict[str, Any]] | None:
+    """Return (index, param) of the first param that identifies the row subject, or None.
+
+    Eligible: a required positional, or a required flag whose values come from a list
+    (identified by a ``select_from`` field).  These are the params that get pre-filled
+    with the clicked row key on a detail page.
+    """
+    for i, p in enumerate(action.get("params") or []):
+        if not isinstance(p, dict):
+            continue
+        kind = p.get("kind")
+        required = p.get("required", kind == "positional")
+        if not required:
+            continue
+        if kind == "positional" or (kind == "flag" and p.get("select_from")):
+            return i, p
+    return None
+
+
 # ── Error modal ───────────────────────────────────────────────────────────────
 
 
@@ -381,63 +400,75 @@ class ScopTuiApp(App[None]):
         tokens = command.split()
         label = tokens[-1].replace("-", " ").title() if tokens else command
 
+        hit = _row_subject_param(action)
+        if hit is None:
+            return
+        subject_idx, subject_p = hit
+        subject_kind = subject_p.get("kind")
+        subject_name = str(subject_p.get("name", "")).lstrip("-")
+
+        # Bake subject into base_args; positionals go bare, flags go as --name value
+        if subject_kind == "positional":
+            baked = [*tokens, row_key]
+        else:
+            baked = [*tokens, str(subject_p.get("name", "")), row_key]
+
         cmd_safe = command.replace(" ", "_")
         form_key = f"{self._current_key}/{cmd_safe}"
         self._pages[form_key] = _PageSpec(
-            key=form_key,
-            label=label,
-            base_args=[*tokens, row_key],  # first positional pre-filled
-            query_flags=[],
-            parent_key=self._current_key,
+            key=form_key, label=label, base_args=baked, query_flags=[], parent_key=self._current_key
         )
         self._form_inputs[form_key] = []
         self._form_flags[form_key] = []
 
+        # Determine whether remaining required inputs exist (excluding the subject)
+        has_remaining = any(
+            isinstance(p, dict)
+            and p.get("required", p.get("kind") == "positional")
+            and "default" not in p
+            and i != subject_idx
+            for i, p in enumerate(params)
+        )
+
         main.mount(Static(f"[bold]{label}[/bold]  [dim]{description}[/dim]"))
-        form = Vertical()
-        main.mount(form)
+        main.mount(Static(f"  [dim]{subject_name}:[/dim]  [bold]{row_key}[/bold]"))
 
-        first_positional = True
-        for idx, p in enumerate(params if isinstance(params, list) else []):
-            if not isinstance(p, dict):
-                continue
-            name = (p.get("name") or "").strip()
-            kind = p.get("kind")
-            if not name or kind not in {"flag", "positional"}:
-                continue
-            required = bool(p.get("required", kind == "positional"))
-            has_default = "default" in p
-
-            if kind == "positional" and first_positional:
-                form.mount(Static(f"  [dim]{name}:[/dim]  [bold]{row_key}[/bold]"))
-                first_positional = False
-                continue
-            first_positional = False
-
-            if not required and not has_default:
-                continue
-            expects_value = (
-                kind == "positional"
-                or p.get("metavar")
-                or has_default
-                or p.get("type") != "boolean"
-            )
-            if not expects_value:
-                self._form_flags[form_key].append(name)
-                continue
-
-            iid = f"finput-{form_key.replace('/', '__')}-{idx}"
-            form.mount(Static(f"  [dim]{name}[/dim]"))
-            form.mount(
-                Input(
-                    value=str(p.get("default", "")),
-                    placeholder=(p.get("metavar") or "value").strip(),
-                    id=iid,
+        if has_remaining:
+            form = Vertical()
+            main.mount(form)
+            for idx, p in enumerate(params if isinstance(params, list) else []):
+                if idx == subject_idx or not isinstance(p, dict):
+                    continue
+                name = (p.get("name") or "").strip()
+                kind = p.get("kind")
+                if not name or kind not in {"flag", "positional"}:
+                    continue
+                required = bool(p.get("required", kind == "positional"))
+                has_default = "default" in p
+                if not required and not has_default:
+                    continue
+                expects_value = (
+                    kind == "positional"
+                    or p.get("metavar")
+                    or has_default
+                    or p.get("type") != "boolean"
                 )
-            )
-            self._form_inputs[form_key].append((iid, name, kind, required))
+                if not expects_value:
+                    self._form_flags[form_key].append(name)
+                    continue
+                iid = f"finput-{form_key.replace('/', '__')}-{idx}"
+                form.mount(Static(f"  [dim]{name}[/dim]"))
+                form.mount(
+                    Input(
+                        value=str(p.get("default", "")),
+                        placeholder=(p.get("metavar") or "value").strip(),
+                        id=iid,
+                    )
+                )
+                self._form_inputs[form_key].append((iid, name, kind, required))
 
-        main.mount(Button(label, id=self._kid("form-submit-", form_key), variant="success"))
+        variant = "success" if has_remaining else "primary"
+        main.mount(Button(label, id=self._kid("form-submit-", form_key), variant=variant))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
@@ -720,13 +751,13 @@ class ScopTuiApp(App[None]):
                             self.run_worker(lambda a=run_args: self._run_scop(a), thread=True)
                             break
 
-                # Actions whose first param is positional become row-click targets
+                # Actions with a subject param (positional or select_from flag) become row targets
                 eligible = [
                     v
                     for _, v in state.items
                     if isinstance(v, dict)
                     and v.get("kind", "action") == "action"
-                    and (v.get("params") or [{}])[0].get("kind") == "positional"
+                    and _row_subject_param(v) is not None
                 ]
                 if eligible:
                     self._row_actions[current_page.key] = eligible

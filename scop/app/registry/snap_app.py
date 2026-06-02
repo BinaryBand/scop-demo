@@ -73,6 +73,7 @@ _ROOT_HELP_ITEMS = [
                     "kind": "positional",
                     "metavar": "OUTPUT_DIR",
                     "input_type": "path",
+                    "required": False,
                 },
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
                 {"name": "--verbose", "kind": "flag", "short": "-v", "type": "boolean"},
@@ -305,6 +306,7 @@ _RESTORE_HELP_ITEMS = [
                     "kind": "positional",
                     "metavar": "OUTPUT_DIR",
                     "input_type": "path",
+                    "required": False,
                 },
                 {"name": "--help", "kind": "flag", "short": "-h", "type": "boolean"},
                 {"name": "--quiet", "kind": "flag", "short": "-q", "type": "boolean"},
@@ -358,15 +360,14 @@ class SnapApp(BaseApp):
             await service.run(stream)
         elif action == "restore":
             raw_name = args.get("name")
-            raw_output = args.get("dest")
-            if not raw_name or not raw_output:
-                missing = "name" if not raw_name else "dest"
+            raw_output = args.get("dest") or ConfigAdapter().load().snapshot.target_dir
+            if not raw_name:
                 stream.emit(
                     SyslogMessage(
                         pri=3,
                         msgid=MSGID.PAGE_END,
                         room=room,
-                        msg=f"error: {missing} argument is required",
+                        msg="error: name argument is required",
                         data={},
                     )
                 )
