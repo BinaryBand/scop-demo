@@ -132,12 +132,6 @@ class ScopTuiApp(App[None]):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("q", "quit", "Quit"),
         Binding("ctrl+l", "toggle_log", "Log"),
-        Binding("tab", "focus_next", "Next Pane"),
-        Binding("shift+tab", "focus_previous", "Prev Pane"),
-        Binding("j", "cursor_down", "Down", show=False),
-        Binding("k", "cursor_up", "Up", show=False),
-        Binding("down", "cursor_down", "Down", show=False),
-        Binding("up", "cursor_up", "Up", show=False),
     ]
 
     def __init__(self, src: TextIO | None = None, *, exit_on_eof: bool = False) -> None:
@@ -655,16 +649,6 @@ class ScopTuiApp(App[None]):
         panel = self.query_one("#activity", ScrollableContainer)
         panel.display = not panel.display
 
-    def action_cursor_down(self) -> None:
-        table = self._active_table()
-        if table is not None:
-            table.action_cursor_down()
-
-    def action_cursor_up(self) -> None:
-        table = self._active_table()
-        if table is not None:
-            table.action_cursor_up()
-
     # PAGE ────────────────────────────────────────────────────────────────────
 
     def page_begin(self, e: dict[str, Any]) -> None:
@@ -851,6 +835,18 @@ class ScopTuiApp(App[None]):
                             variant="success",
                         )
                     )
+                else:
+                    # No inputs needed — auto-run the action immediately.
+                    command_key = " ".join(current_page.base_args)
+                    for _, value in render_items:
+                        if (
+                            isinstance(value, dict)
+                            and value.get("command") == command_key
+                            and value.get("kind") == "action"
+                        ):
+                            run_args = list(current_page.base_args)
+                            self.run_worker(lambda a=run_args: self._run_scop(a), thread=True)
+                            break
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for i, (_, value) in enumerate(render_items, 1):
             prefix = f"{i}." if state.ordered else "•"

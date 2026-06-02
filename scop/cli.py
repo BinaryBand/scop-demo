@@ -96,6 +96,9 @@ def _build_parser() -> argparse.ArgumentParser:
     config.add_argument("--help", "-h", action="store_true", help="Show config form")
     config.add_argument("--list", "-l", action="store_true", help="Show config as a table")
     config.add_argument(
+        "--target-dir", dest="target_dir", metavar="PATH", help="Directory to snapshot"
+    )
+    config.add_argument(
         "--store-dir", dest="store_dir", metavar="PATH", help="Snapshot store directory"
     )
     config.add_argument(

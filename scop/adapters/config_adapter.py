@@ -13,6 +13,7 @@ _CONFIG_PATH = Path("static") / "config.toml"
 _EDITABLE: dict[str, tuple[str, str]] = {
     "snapshot.store_dir": ("snapshot", "store_dir"),
     "snapshot.objects_dir": ("snapshot", "objects_dir"),
+    "snapshot.target_dir": ("snapshot", "target_dir"),
     "snapshot.skip_dirs": ("snapshot", "skip_dirs"),
 }
 
@@ -22,6 +23,7 @@ def _serialize(config: AppConfig) -> str:
     dirs = "\n".join(f'    "{d}",' for d in snap.skip_dirs)
     return (
         "[snapshot]\n"
+        f'target_dir = "{snap.target_dir}"\n'
         f'store_dir = "{snap.store_dir}"\n'
         f'objects_dir = "{snap.objects_dir}"\n'
         f"skip_dirs = [\n{dirs}\n]\n"
@@ -42,6 +44,7 @@ class ConfigAdapter(Adapter, ConfigPort):
             snapshot=SnapshotConfig(
                 store_dir=str(snap_raw.get("store_dir", defaults.store_dir)),
                 objects_dir=str(snap_raw.get("objects_dir", defaults.objects_dir)),
+                target_dir=str(snap_raw.get("target_dir", defaults.target_dir)),
                 skip_dirs=tuple(snap_raw.get("skip_dirs", list(defaults.skip_dirs))),
             )
         )
@@ -56,16 +59,32 @@ class ConfigAdapter(Adapter, ConfigPort):
 
         if key == "snapshot.store_dir":
             snap = SnapshotConfig(
-                store_dir=value, objects_dir=snap.objects_dir, skip_dirs=snap.skip_dirs
+                store_dir=value,
+                objects_dir=snap.objects_dir,
+                target_dir=snap.target_dir,
+                skip_dirs=snap.skip_dirs,
             )
         elif key == "snapshot.objects_dir":
             snap = SnapshotConfig(
-                store_dir=snap.store_dir, objects_dir=value, skip_dirs=snap.skip_dirs
+                store_dir=snap.store_dir,
+                objects_dir=value,
+                target_dir=snap.target_dir,
+                skip_dirs=snap.skip_dirs,
+            )
+        elif key == "snapshot.target_dir":
+            snap = SnapshotConfig(
+                store_dir=snap.store_dir,
+                objects_dir=snap.objects_dir,
+                target_dir=value,
+                skip_dirs=snap.skip_dirs,
             )
         elif key == "snapshot.skip_dirs":
             skip = tuple(v.strip() for v in value.split(",") if v.strip())
             snap = SnapshotConfig(
-                store_dir=snap.store_dir, objects_dir=snap.objects_dir, skip_dirs=skip
+                store_dir=snap.store_dir,
+                objects_dir=snap.objects_dir,
+                target_dir=snap.target_dir,
+                skip_dirs=skip,
             )
 
         new_config = AppConfig(snapshot=snap)

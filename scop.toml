@@ -40,6 +40,13 @@ description = "Update configuration"
 kind = "action"
 
 [[room.command.param]]
+name = "--target-dir"
+kind = "flag"
+type = "string"
+metavar = "PATH"
+default = "."
+
+[[room.command.param]]
 name = "--store-dir"
 kind = "flag"
 type = "string"
@@ -88,12 +95,6 @@ name = "Create"
 exec = "snapshot create"
 description = "Take a new snapshot"
 kind = "action"
-
-[[room.command.param]]
-name = "path"
-kind = "positional"
-type = "string"
-metavar = "PATH"
 
 [[room.command.param]]
 name = "--dry-run"

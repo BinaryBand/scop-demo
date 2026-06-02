@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from scop.adapters.config_adapter import ConfigAdapter
 from scop.adapters.snapshot_adapter import SnapshotAdapter
 from scop.bases import BaseApp
 from scop.models.protocol import MSGID, SyslogMessage
@@ -20,7 +21,6 @@ _ROOT_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
-                {"name": "path", "kind": "positional", "metavar": "PATH", "input_type": "path"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -193,7 +193,6 @@ _CREATE_HELP_ITEMS = [
             "description": "Take a new snapshot",
             "kind": "action",
             "params": [
-                {"name": "path", "kind": "positional", "metavar": "PATH", "input_type": "path"},
                 {"name": "--dry-run", "kind": "flag", "short": "-n", "type": "boolean"},
                 {
                     "name": "--force",
@@ -347,22 +346,7 @@ class SnapApp(BaseApp):
                 | RestoreSnapshotService
                 | SnapshotStatusService
             )
-            raw_path = args.get("path")
-            if not raw_path:
-                stream.emit(
-                    SyslogMessage(
-                        pri=3,
-                        msgid=MSGID.PAGE_END,
-                        room=room,
-                        msg="error: path argument is required",
-                        data={},
-                    )
-                )
-                stream.resolve(
-                    ok=False,
-                    data=SyslogMessage(pri=3, msgid=MSGID.PAGE_END, room=room, msg="", data={}),
-                )
-                return
+            raw_path = args.get("path") or ConfigAdapter().load().snapshot.target_dir
             service = CreateSnapshotService(
                 port=port,
                 room=room,

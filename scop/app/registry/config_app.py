@@ -15,6 +15,13 @@ def _form_params(config: AppConfig) -> list[dict]:
     snap = config.snapshot
     return [
         {
+            "name": "--target-dir",
+            "kind": "flag",
+            "metavar": "PATH",
+            "default": snap.target_dir,
+            "input_type": "path",
+        },
+        {
             "name": "--store-dir",
             "kind": "flag",
             "metavar": "PATH",
@@ -81,6 +88,8 @@ class ConfigApp(BaseApp):
 
         # Collect update flags — any provided flag updates that key.
         updates: dict[str, str] = {}
+        if args.get("target_dir"):
+            updates["snapshot.target_dir"] = str(args["target_dir"])
         if args.get("store_dir"):
             updates["snapshot.store_dir"] = str(args["store_dir"])
         if args.get("objects_dir"):

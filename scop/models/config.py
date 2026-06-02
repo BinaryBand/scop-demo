@@ -19,6 +19,7 @@ _DEFAULT_SKIP_DIRS: tuple[str, ...] = (
 class SnapshotConfig:
     store_dir: str = ".scop/snapshots"
     objects_dir: str = ".scop/objects"
+    target_dir: str = "."
     skip_dirs: tuple[str, ...] = _DEFAULT_SKIP_DIRS
 
 

@@ -1,4 +1,5 @@
 [snapshot]
+target_dir = "."
 store_dir = "downloads/snapshots"
 objects_dir = "downloads/objects"
 skip_dirs = [

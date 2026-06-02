@@ -17,6 +17,7 @@ class ConfigStatusService(Service):
         snap = config.snapshot
 
         scalars: list[tuple[str, str, str]] = [
+            ("snapshot.target_dir", "Snapshot target", snap.target_dir),
             ("snapshot.store_dir", "Snapshot store", snap.store_dir),
             ("snapshot.objects_dir", "Object store", snap.objects_dir),
             ("snapshot.skip_dirs", "Skipped dirs", ", ".join(snap.skip_dirs)),
