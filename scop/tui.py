@@ -1,7 +1,7 @@
 """SCOP §10 consumer — Textual TUI.
 
 Usage:
-    scop-tui                          # standalone: loads home page, nav sidebar
+    scop-tui                          # standalone: loads nav, starts on first page
     scop [command] | scop-tui         # pipe mode: render one command's output
     scop-tui --from events.ndjson     # replay a recorded stream
     scop-tui --cmd "scop snapshot"    # run a shell command and render it
@@ -14,18 +14,17 @@ from __future__ import annotations
 
 import io
 import json
+import pathlib
 import shlex
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, ClassVar, TextIO
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.suggester import Suggester
 from textual.widgets import (
     Button,
     DataTable,
@@ -37,14 +36,13 @@ from textual.widgets import (
     ListView,
     ProgressBar,
     RichLog,
-    Select,
     SelectionList,
     Static,
 )
 
 from scop.utils.proc import run_resolved
 
-# ── In-flight accumulators ────────────────────────────────────────────────────
+# ── Accumulators ──────────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -61,12 +59,6 @@ class _ListState:
     items: list[tuple[str, Any]] = field(default_factory=list)
 
 
-@dataclass
-class _ProcessState:
-    label: str
-    total: float | None
-
-
 @dataclass(frozen=True)
 class _PageSpec:
     key: str
@@ -77,36 +69,14 @@ class _PageSpec:
 
 
 def _action_needs_input(item: dict[str, Any]) -> bool:
-    """Return True if any param in the action requires user input (no default supplied)."""
-    for param in item.get("params") or []:
-        if not isinstance(param, dict):
+    """True if the action has at least one required param with no pre-supplied default."""
+    for p in item.get("params") or []:
+        if not isinstance(p, dict):
             continue
-        kind = param.get("kind")
-        required = param.get("required", kind == "positional")
-        if required and "default" not in param:
+        required = p.get("required", p.get("kind") == "positional")
+        if required and "default" not in p:
             return True
     return False
-
-
-# ── Path autocomplete ─────────────────────────────────────────────────────────
-
-
-class _PathSuggester(Suggester):
-    """Filesystem directory autocomplete for Input widgets."""
-
-    async def get_suggestion(self, value: str) -> str | None:
-        p = Path(value) if value else Path()
-        if value.endswith("/"):
-            directory, prefix = p, ""
-        else:
-            directory, prefix = p.parent, p.name
-        if not directory.is_dir():
-            return None
-        matches = sorted(c for c in directory.iterdir() if c.name.startswith(prefix) and c.is_dir())
-        if not matches:
-            return None
-        suggestion = str(matches[0])
-        return suggestion + "/" if not suggestion.endswith("/") else suggestion
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -119,26 +89,16 @@ class ScopTuiApp(App[None]):
 
     CSS = """
     Horizontal { height: 1fr; }
-    #nav {
-        width: 20;
-        border-right: tall $primary;
-    }
-    #nav-heading { padding: 1 1 0 1; color: $text-muted; text-style: bold; }
+    #nav { width: 20; border-right: tall $primary; }
     #right { width: 1fr; }
-    #back-btn { margin: 1 1 0 1; width: auto; display: none; }
+    #back-btn { margin: 0 1; width: auto; display: none; }
+    #cta-row Button { margin-right: 1; }
     #main { height: 1fr; padding: 0 1; }
-    #cta-slot { height: auto; margin-bottom: 1; }
-    #cta-row { height: auto; }
-    #cta-row Button { margin-right: 1; min-width: 12; }
     #action-form { height: auto; margin-bottom: 1; }
     #action-form Input { margin: 0 0 1 0; }
-    #action-form Select { margin: 0 0 1 0; height: 3; }
-    #action-form SelectionList { margin: 0 0 1 0; height: auto; max-height: 12; }
-    #action-form Button { width: auto; }
+    #action-form SelectionList { height: auto; max-height: 12; margin: 0 0 1 0; }
     #activity { height: 8; border-top: tall $primary; display: none; }
-    .stat { margin-bottom: 1; }
     DataTable { height: auto; }
-    ListView > ListItem { padding: 0 1; }
     """
 
     BINDINGS: ClassVar[list[Binding]] = [
@@ -153,33 +113,26 @@ class ScopTuiApp(App[None]):
         self._current_key: str = ""
         self._tables: dict[str, _TableState] = {}
         self._lists: dict[str, _ListState] = {}
-        self._procs: dict[str, _ProcessState] = {}
+        self._procs: dict[str, str] = {}  # id → label
         self._pages: dict[str, _PageSpec] = {}
         self._page_order: list[str] = []
         self._composite_active = False
         self._composite_page_started = False
         self._composite_page_end_remaining = 0
-        self._form_inputs_by_page: dict[str, list[tuple[str, str, str, bool]]] = {}
-        self._form_auto_flags_by_page: dict[str, list[str]] = {}
+        self._form_inputs: dict[str, list[tuple[str, str, str, bool]]] = {}
+        self._form_flags: dict[str, list[str]] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal():
             with ScrollableContainer(id="nav"):
-                yield Static("Pages", id="nav-heading")
-                yield ListView(
-                    *[
-                        ListItem(Label(self._pages[key].label), id=self._nav_id_for_key(key))
-                        for key in self._page_order
-                    ],
-                    id="nav-menu",
-                )
+                yield ListView(id="nav-menu")
             with Vertical(id="right"):
                 yield Button("← Back", id="back-btn", variant="default")
-                with ScrollableContainer(id="main"):
-                    yield Vertical(id="cta-slot")
+                yield Vertical(id="cta-slot")
+                yield ScrollableContainer(id="main")
         with ScrollableContainer(id="activity"):
-            yield RichLog(id="log", markup=True, highlight=False)
+            yield RichLog(id="log")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -190,7 +143,7 @@ class ScopTuiApp(App[None]):
         elif self._page_order:
             self._navigate(self._page_order[0])
 
-    # ── Stream workers ────────────────────────────────────────────────────────
+    # ── Stream ────────────────────────────────────────────────────────────────
 
     def _read_stream(self) -> None:
         if self._src is None:
@@ -202,47 +155,33 @@ class ScopTuiApp(App[None]):
 
     def _run_scop(self, args: list[str]) -> None:
         exe = shutil.which("scop") or "scop"
-        result = subprocess.run(
-            [exe, *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
+        result = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
         for raw in io.StringIO(result.stdout):
             self._process_line(raw)
-
-    def _run_scop_pipeline(self, commands: list[list[str]]) -> None:
-        for args in commands:
-            self._run_scop(args)
 
     def _prime_root_pages(self) -> None:
         exe = shutil.which("scop") or "scop"
         try:
             result = subprocess.run(
-                [exe, "--help"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
+                [exe, "--help"], capture_output=True, text=True, encoding="utf-8", check=False
             )
         except OSError:
             return
-
         items: list[tuple[str, Any]] = []
         for raw in io.StringIO(result.stdout):
             line = raw.strip()
             if not line:
                 continue
             try:
-                event: dict[str, Any] = json.loads(line)
+                ev: dict[str, Any] = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if event.get("msgid") != "LIST_APPEND" or event.get("id") != "help":
-                continue
-            items.append((str(event.get("item_id", "")), event.get("value", "")))
-
+            if ev.get("msgid") == "LIST_APPEND" and ev.get("id") == "help":
+                items.append((str(ev.get("item_id", "")), ev.get("value", "")))
         if items:
             self._ingest_help_items(items)
+
+    # ── Pages ─────────────────────────────────────────────────────────────────
 
     def _page_by_key(self, key: str) -> _PageSpec | None:
         return self._pages.get(key)
@@ -250,101 +189,67 @@ class ScopTuiApp(App[None]):
     def _commands_for_page(self, page: _PageSpec) -> list[list[str]]:
         if not page.query_flags:
             return [list(page.base_args)]
-        return [[*page.base_args, *flags] for flags in page.query_flags]
+        return [[*page.base_args, *f] for f in page.query_flags]
 
-    def _nav_id_for_key(self, key: str) -> str:
-        return f"page-{key.replace('/', '__')}"
+    @staticmethod
+    def _kid(prefix: str, key: str) -> str:
+        return f"{prefix}{key.replace('/', '__')}"
 
-    def _key_from_nav_id(self, item_id: str) -> str | None:
-        if not item_id.startswith("page-"):
+    @staticmethod
+    def _kfromid(prefix: str, widget_id: str) -> str | None:
+        if not widget_id.startswith(prefix):
             return None
-        encoded = item_id[5:]
-        return encoded.replace("__", "/")
-
-    def _cta_id_for_key(self, key: str) -> str:
-        return f"cta-{key.replace('/', '__')}"
-
-    def _key_from_cta_id(self, item_id: str) -> str | None:
-        if not item_id.startswith("cta-"):
-            return None
-        encoded = item_id[4:]
-        return encoded.replace("__", "/")
-
-    def _form_submit_id_for_key(self, key: str) -> str:
-        return f"form-submit-{key.replace('/', '__')}"
-
-    def _key_from_form_submit_id(self, item_id: str) -> str | None:
-        if not item_id.startswith("form-submit-"):
-            return None
-        encoded = item_id[12:]
-        return encoded.replace("__", "/")
-
-    def _form_input_id(self, key: str, index: int) -> str:
-        return f"form-input-{key.replace('/', '__')}-{index}"
+        return widget_id[len(prefix) :].replace("__", "/")
 
     def _ensure_page(self, page: _PageSpec) -> None:
-        if page.key in self._pages:
-            return
-        self._pages[page.key] = page
-        self._page_order.append(page.key)
+        if page.key not in self._pages:
+            self._pages[page.key] = page
+            self._page_order.append(page.key)
 
     def _refresh_nav_menu(self) -> None:
         nav = self.query_one("#nav-menu", ListView)
         for key in self._page_order:
-            item_id = self._nav_id_for_key(key)
-            mounted_item = next(nav.query(f"#{item_id}").results(ListItem), None)
-            if mounted_item is None:
-                nav.mount(ListItem(Label(self._pages[key].label), id=item_id))
-                continue
-            label = next(mounted_item.query("Label").results(Label), None)
-            if label is not None:
-                label.update(self._pages[key].label)
+            iid = self._kid("page-", key)
+            item = next(nav.query(f"#{iid}").results(ListItem), None)
+            if item is None:
+                nav.mount(ListItem(Label(self._pages[key].label), id=iid))
+            else:
+                lbl = next(item.query(Label).results(Label), None)
+                if lbl is not None:
+                    lbl.update(self._pages[key].label)
         self._sync_nav_highlight()
 
-    def _infer_page_from_command(self, command: str, description: str) -> _PageSpec | None:
+    def _infer_page_from_command(self, command: str) -> _PageSpec | None:
         try:
-            tokens = [tok for tok in shlex.split(command, posix=False) if tok]
+            tokens = [t for t in shlex.split(command, posix=False) if t]
         except ValueError:
             return None
-        subcommands = [tok for tok in tokens if not tok.startswith("-")]
-        if not subcommands:
+        subs = [t for t in tokens if not t.startswith("-")]
+        if not subs:
             return None
-
-        key = "/".join(subcommands)
-        depth = len(subcommands) - 1
-        title = subcommands[-1].replace("-", " ").title()
-        label = f"{'  ' * depth}{title}"
-        if description and depth == 0:
-            label = title
-
-        if len(subcommands) == 1:
-            # Render list first so primary records stay visible near the top.
-            query_flags = [["--list", "--all"], ["--status"], ["--help"]]
-            parent_key = None
-        else:
-            query_flags = [["--help"]]
-            parent_key = "/".join(subcommands[:-1])
-
+        key = "/".join(subs)
+        depth = len(subs) - 1
+        label = f"{'  ' * depth}{subs[-1].replace('-', ' ').title()}"
+        query_flags = (
+            [["--list", "--all"], ["--status"], ["--help"]] if depth == 0 else [["--help"]]
+        )
         return _PageSpec(
             key=key,
             label=label,
-            base_args=subcommands,
+            base_args=subs,
             query_flags=query_flags,
-            parent_key=parent_key,
+            parent_key="/".join(subs[:-1]) if depth > 0 else None,
         )
 
     def _ingest_help_items(self, items: list[tuple[str, Any]]) -> None:
         changed = False
-        for _item_id, value in items:
+        for _, value in items:
             if not isinstance(value, dict):
                 continue
             command = value.get("command")
-            description = value.get("description", "")
             if not isinstance(command, str):
                 continue
-            page = self._infer_page_from_command(
-                command, description if isinstance(description, str) else ""
-            )
+            page = self._infer_page_from_command(command)
             if page is None or page.key in self._pages:
                 continue
             self._ensure_page(page)
@@ -372,277 +277,152 @@ class ScopTuiApp(App[None]):
         self._current_key = page.key
         self.query_one("#back-btn", Button).display = page.parent_key is not None
         self._sync_nav_highlight()
-
         commands = self._commands_for_page(page)
-        if len(commands) > 1:
-            self._composite_active = True
-            self._composite_page_started = False
-            self._composite_page_end_remaining = len(commands)
-            captured_pipeline = [list(cmd) for cmd in commands]
-            self.run_worker(lambda: self._run_scop_pipeline(captured_pipeline), thread=True)
-            return
-
-        self._composite_active = False
+        self._composite_active = len(commands) > 1
         self._composite_page_started = False
-        self._composite_page_end_remaining = 0
-        captured = list(commands[0])
-        self.run_worker(lambda: self._run_scop(captured), thread=True)
-
-    def _root_key_for_page(self, key: str) -> str:
-        seen: set[str] = set()
-        current_key = key
-        while current_key not in seen:
-            seen.add(current_key)
-            page = self._page_by_key(current_key)
-            if page is None or page.parent_key is None:
-                return current_key
-            current_key = page.parent_key
-        return key
+        self._composite_page_end_remaining = len(commands)
+        captured = [list(c) for c in commands]
+        self.run_worker(lambda: [self._run_scop(c) for c in captured], thread=True)
 
     def _sync_nav_highlight(self) -> None:
         nav = self.query_one("#nav-menu", ListView)
-        root_key = self._root_key_for_page(self._current_key)
-        if root_key not in self._page_order:
-            return
-        nav.index = self._page_order.index(root_key)
+        key = self._current_key
+        # Walk up to root page for highlight
+        seen: set[str] = set()
+        while key not in seen:
+            seen.add(key)
+            p = self._page_by_key(key)
+            if p is None or p.parent_key is None:
+                break
+            key = p.parent_key
+        if key in self._page_order:
+            nav.index = self._page_order.index(key)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        item_id = event.item.id or ""
-        key = self._key_from_nav_id(item_id)
-        if key is None:
-            return
-        self._navigate(key)
+        key = self._kfromid("page-", event.item.id or "")
+        if key:
+            self._navigate(key)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        button_id = event.button.id or ""
-        if button_id == "back-btn":
+        bid = event.button.id or ""
+        if bid == "back-btn":
             current = self._page_by_key(self._current_key)
-            parent_key = current.parent_key if current else None
-            self._navigate(parent_key or self._page_order[0])
+            self._navigate((current.parent_key if current else None) or self._page_order[0])
             return
 
-        form_key = self._key_from_form_submit_id(button_id)
+        form_key = self._kfromid("form-submit-", bid)
         if form_key is not None:
             page = self._page_by_key(form_key)
             if page is None:
                 return
-
-            args = list(page.base_args)
-            args.extend(self._form_auto_flags_by_page.get(form_key, []))
-
+            args = list(page.base_args) + list(self._form_flags.get(form_key, []))
             missing: list[str] = []
-            for input_id, param_name, param_kind, param_required in self._form_inputs_by_page.get(
-                form_key, []
-            ):
-                multi_widget = next(self.query(f"#{input_id}").results(SelectionList), None)
-                if multi_widget is not None:
-                    value = ",".join(str(v) for v in multi_widget.selected)
+            for iid, pname, pkind, preq in self._form_inputs.get(form_key, []):
+                ml = next(self.query(f"#{iid}").results(SelectionList), None)
+                if ml is not None:
+                    value = ",".join(str(v) for v in ml.selected)
                 else:
-                    select_widget = next(self.query(f"#{input_id}").results(Select), None)
-                    if select_widget is not None:
-                        raw = select_widget.value
-                        value = "" if raw is Select.BLANK else str(raw)
-                    else:
-                        field = next(self.query(f"#{input_id}").results(Input), None)
-                        value = field.value.strip() if field is not None else ""
+                    fi = next(self.query(f"#{iid}").results(Input), None)
+                    value = fi.value.strip() if fi is not None else ""
                 if not value:
-                    if param_required:
-                        missing.append(param_name)
-                    continue  # skip empty optional fields silently
-                if param_kind == "positional":
-                    args.append(value)
-                else:
-                    args.extend([param_name, value])
-
+                    if preq:
+                        missing.append(pname)
+                    continue
+                args.extend([value] if pkind == "positional" else [pname, value])
             if missing:
-                self._log(f"[yellow]missing required:[/yellow] {', '.join(missing)}")
+                self._log(f"[yellow]missing:[/yellow] {', '.join(missing)}")
                 return
-
-            self.run_worker(lambda: self._run_scop(args), thread=True)
+            self.run_worker(lambda a=args: self._run_scop(a), thread=True)
             return
 
-        cta_key = self._key_from_cta_id(button_id)
-        if cta_key is not None:
+        cta_key = self._kfromid("cta-", bid)
+        if cta_key:
             self._navigate(cta_key)
+
+    # ── Form ──────────────────────────────────────────────────────────────────
 
     def _mount_action_form(
         self,
         main: ScrollableContainer,
-        current_page: _PageSpec,
-        render_items: list[tuple[str, Any]],
+        page: _PageSpec,
+        items: list[tuple[str, Any]],
     ) -> bool:
-        """Mount input widgets for required params. Returns True if a form was built."""
-        command_key = " ".join(current_page.base_args)
-        selected_value: dict[str, Any] | None = None
-
-        for _, value in render_items:
-            if not isinstance(value, dict):
-                continue
-            command = value.get("command")
-            if isinstance(command, str) and command == command_key:
-                selected_value = value
-                break
-
-        self._form_inputs_by_page[current_page.key] = []
-        self._form_auto_flags_by_page[current_page.key] = []
-        if selected_value is None:
+        cmd = " ".join(page.base_args)
+        action = next(
+            (
+                v
+                for _, v in items
+                if isinstance(v, dict)
+                and v.get("command") == cmd
+                and v.get("kind", "action") == "action"
+            ),
+            None,
+        )
+        self._form_inputs[page.key] = []
+        self._form_flags[page.key] = []
+        if action is None:
             return False
 
-        if selected_value.get("kind", "action") != "action":
-            return False
+        params = action.get("params") if isinstance(action.get("params"), list) else []
+        rows: list[tuple[str, str, str, bool, dict[str, Any]]] = []
 
-        raw_params = selected_value.get("params")
-        if not isinstance(raw_params, list):
-            return False
-
-        input_rows: list[tuple[str, str, str, str, str | None, str | None, str, list[str]]] = []
-        mounted_any = False
-
-        for idx, raw_param in enumerate(raw_params):
-            if not isinstance(raw_param, dict):
+        for idx, p in enumerate(params):
+            if not isinstance(p, dict):
                 continue
-            param = dict(raw_param)
-
-            name = param.get("name")
-            if not isinstance(name, str) or not name.strip():
+            name = (p.get("name") or "").strip()
+            kind = p.get("kind")
+            if not name or kind not in {"flag", "positional"}:
                 continue
-            name = name.strip()
-
-            kind = param.get("kind")
-            if kind not in {"flag", "positional"}:
-                continue
-
-            required = bool(param.get("required", kind == "positional"))
-            has_default = "default" in param
-            # Include the field if it's required OR has a default value to pre-populate.
+            required = bool(p.get("required", kind == "positional"))
+            has_default = "default" in p
             if not required and not has_default:
                 continue
-
-            param_type = param.get("type")
-            metavar = param.get("metavar")
             expects_value = (
                 kind == "positional"
-                or (isinstance(metavar, str) and bool(metavar.strip()))
+                or p.get("metavar")
                 or has_default
-                or param_type != "boolean"
+                or p.get("type") != "boolean"
             )
-
-            if not expects_value and kind == "flag":
-                self._form_auto_flags_by_page[current_page.key].append(name)
-                mounted_any = True
+            if not expects_value:
+                self._form_flags[page.key].append(name)
                 continue
+            iid = f"finput-{page.key.replace('/', '__')}-{idx}"
+            rows.append((iid, name, str(kind), required, p))
+            self._form_inputs[page.key].append((iid, name, str(kind), required))
 
-            select_from = param.get("select_from")
-            input_type = param.get("input_type")
-            input_id = self._form_input_id(current_page.key, idx)
-            short = param.get("short")
-            short_text = f" ({short})" if isinstance(short, str) and short.strip() else ""
-            placeholder = (
-                metavar.strip() if isinstance(metavar, str) and metavar.strip() else "value"
-            )
-            default_val = str(param.get("default", ""))
-            options: list[str] = [str(o) for o in param.get("options", []) if o]
-            input_rows.append((
-                input_id,
-                name,
-                short_text,
-                placeholder,
-                select_from,
-                input_type,
-                default_val,
-                options,
-            ))
-            self._form_inputs_by_page[current_page.key].append((input_id, name, kind, required))
-            mounted_any = True
-
-        if not mounted_any:
+        if not rows and not self._form_flags[page.key]:
             return False
 
-        form_box = Vertical(id="action-form")
-        main.mount(form_box)
-        form_box.mount(Static("[bold]Required Inputs[/bold]"))
-
-        for (
-            input_id,
-            name,
-            short_text,
-            placeholder,
-            select_from,
-            input_type,
-            default_val,
-            options,
-        ) in input_rows:
-            form_box.mount(Static(f"  [dim]{name}{short_text}[/dim]"))
-            if input_type == "multi":
-                selected = {s.strip() for s in default_val.split(",") if s.strip()}
-                # Preserve any custom entries from default not in options list
-                all_opts = list(options) + [s for s in selected if s not in options]
-                form_box.mount(
+        form = Vertical(id="action-form")
+        main.mount(form)
+        for iid, name, _kind, _req, p in rows:
+            form.mount(Static(f"  [dim]{name}[/dim]"))
+            default_val = str(p.get("default", ""))
+            placeholder = (p.get("metavar") or "value").strip()
+            if p.get("input_type") == "multi":
+                opts = [str(o) for o in (p.get("options") or []) if o]
+                sel = {s.strip() for s in default_val.split(",") if s.strip()}
+                form.mount(
                     SelectionList(
-                        *[(opt, opt, opt in selected) for opt in all_opts],
-                        id=input_id,
-                    )
-                )
-            elif isinstance(select_from, str) and select_from.strip():
-                form_box.mount(Select([], id=input_id, prompt=f"Choose {placeholder}…"))
-                select_args = shlex.split(select_from.strip())
-                self.run_worker(
-                    lambda sid=input_id, sa=select_args: self._fetch_select_options(sid, sa),
-                    thread=True,
-                )
-            elif input_type == "path":
-                form_box.mount(
-                    Input(
-                        value=default_val,
-                        placeholder=placeholder,
-                        id=input_id,
-                        suggester=_PathSuggester(),
+                        *[(o, o, o in sel) for o in opts + [s for s in sel if s not in opts]],
+                        id=iid,
                     )
                 )
             else:
-                form_box.mount(Input(value=default_val, placeholder=placeholder, id=input_id))
-
+                form.mount(Input(value=default_val, placeholder=placeholder, id=iid))
         return True
-
-    def _fetch_select_options(self, select_id: str, args: list[str]) -> None:
-        """Worker: run a scop command and collect TABLE_ROW name values for a Select."""
-        exe = shutil.which("scop") or "scop"
-        result = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
-        names: list[str] = []
-        for raw in result.stdout.splitlines():
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                e: dict[str, Any] = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            if e.get("msgid") == "TABLE_ROW":
-                name = e.get("values", {}).get("name")
-                if isinstance(name, str) and name:
-                    names.append(name)
-        self.call_from_thread(self._populate_select, select_id, names)
-
-    def _populate_select(self, select_id: str, names: list[str]) -> None:
-        """Main thread: fill a Select widget with the fetched names."""
-        for widget in self.query(f"#{select_id}").results(Select):
-            widget.set_options([(n, n) for n in names])
-            break
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
     def _route(self, event: dict[str, Any]) -> None:
         pri: int = event.get("pri", 6)
-        msgid: str = event.get("msgid", "")
-
         if pri <= 3:
             self._log(f"[bold red]ERROR[/bold red] {event.get('msg', '')}")
             return
         if pri == 4:
             self._log(f"[yellow]WARNING[/yellow] {event.get('msg', '')}")
             return
-
-        handler = _DISPATCH.get(msgid)
+        handler = _DISPATCH.get(event.get("msgid", ""))
         if handler is None:
             self._log(f"[dim]{event.get('msg', '')}[/dim]")
             return
@@ -651,57 +431,20 @@ class ScopTuiApp(App[None]):
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)
 
-    def _active_table(self) -> DataTable | None:
-        focused = self.focused
-        if isinstance(focused, DataTable):
-            return focused
-        return next(self.query("DataTable").results(DataTable), None)
-
     def action_toggle_log(self) -> None:
         panel = self.query_one("#activity", ScrollableContainer)
         panel.display = not panel.display
 
-    # PAGE ────────────────────────────────────────────────────────────────────
+    # ── PAGE ──────────────────────────────────────────────────────────────────
 
     def page_begin(self, e: dict[str, Any]) -> None:
         if self._composite_active and self._composite_page_started:
-            # In composite mode we keep one page shell while appending data from
-            # subsequent SCOP query runs.
             return
-
         self._composite_page_started = self._composite_active
-        title = e.get("title") or e.get("room") or "scop"
-        icon = e.get("icon", "")
-        current_page = self._page_by_key(self._current_key)
-        if (
-            current_page is not None
-            and current_page.parent_key is not None
-            and current_page.base_args
-        ):
-            # For child pages, show the concrete command target (e.g. Create/Diff)
-            # rather than the parent room title emitted by SCOP.
-            title = current_page.base_args[-1].replace("-", " ").title()
-        self.title = f"{icon} {title}".strip()
+        self.title = e.get("title") or e.get("room") or "scop"
         self.sub_title = e.get("subtitle", "")
-        # If SCOP provided an icon, update the matching nav label (root pages only).
-        # Sub-page icons (List, All, Diff) come from _PAGES defaults, not PAGE_BEGIN.
-        if icon:
-            page = self._page_by_key(self._current_key)
-            if page and page.parent_key is None:  # root pages only
-                bare = " ".join(w for w in page.label.split() if all(ord(c) <= 127 for c in w))
-                for item in self.query(f"#{self._nav_id_for_key(self._current_key)}").results(
-                    ListItem
-                ):
-                    for lbl in item.query(Label).results(Label):
-                        lbl.update(f"{icon} {bare}")
-                    break
-        main = self.query_one("#main", ScrollableContainer)
-        cta_slot = self.query_one("#cta-slot", Vertical)
-        cta_slot.remove_children()
-        for child in list(main.children):
-            if child.id == "cta-slot":
-                continue
-            child.remove()
+        self.query_one("#cta-slot", Vertical).remove_children()
+        self.query_one("#main", ScrollableContainer).remove_children()
         self._tables.clear()
         self._lists.clear()
         self._procs.clear()
@@ -716,7 +459,7 @@ class ScopTuiApp(App[None]):
             self._composite_page_end_remaining = 0
         self._log("[dim]── end ──[/dim]")
 
-    # SCALAR ──────────────────────────────────────────────────────────────────
+    # ── SCALAR ────────────────────────────────────────────────────────────────
 
     def scalar_set(self, e: dict[str, Any]) -> None:
         label = e.get("label") or e.get("id", "")
@@ -724,13 +467,10 @@ class ScopTuiApp(App[None]):
         unit = e.get("unit", "")
         display = f"{value}{' ' + unit if unit else ''}"
         self.query_one("#main", ScrollableContainer).mount(
-            Static(f"[dim]{label}:[/dim]  [bold]{display}[/bold]", classes="stat")
+            Static(f"[dim]{label}:[/dim]  [bold]{display}[/bold]")
         )
 
-    def scalar_clear(self, _e: dict[str, Any]) -> None:
-        pass
-
-    # TABLE ───────────────────────────────────────────────────────────────────
+    # ── TABLE ─────────────────────────────────────────────────────────────────
 
     def table_declare(self, e: dict[str, Any]) -> None:
         state = _TableState(label=e.get("label", e["id"]), schema=e.get("schema", []))
@@ -750,8 +490,9 @@ class ScopTuiApp(App[None]):
         vals = e.get("values", {})
         row_id = e.get("row_id", "")
         state.rows.append((row_id, vals))
-        table = self.query_one(f"#table-{e['id']}", DataTable)
-        table.add_row(*[str(vals.get(c, "")) for c in state.schema], key=row_id)
+        self.query_one(f"#table-{e['id']}", DataTable).add_row(
+            *[str(vals.get(c, "")) for c in state.schema], key=row_id
+        )
 
     def table_update(self, e: dict[str, Any]) -> None:
         state = self._tables.get(e["id"])
@@ -767,15 +508,11 @@ class ScopTuiApp(App[None]):
                     table.update_cell(row_id, col, str(val))
                 break
 
-    def table_end(self, _e: dict[str, Any]) -> None:
-        pass  # table populated row-by-row via table_row
-
-    # LIST ────────────────────────────────────────────────────────────────────
+    # ── LIST ──────────────────────────────────────────────────────────────────
 
     def list_declare(self, e: dict[str, Any]) -> None:
         self._lists[e["id"]] = _ListState(
-            label=e.get("label", e["id"]),
-            ordered=e.get("ordered", False),
+            label=e.get("label", e["id"]), ordered=e.get("ordered", False)
         )
 
     def list_append(self, e: dict[str, Any]) -> None:
@@ -783,146 +520,90 @@ class ScopTuiApp(App[None]):
         if state:
             state.items.append((e.get("item_id", ""), e.get("value", "")))
 
-    def list_update(self, _e: dict[str, Any]) -> None:
-        pass  # TODO: update item before list_end
-
-    def list_remove(self, _e: dict[str, Any]) -> None:
-        pass  # TODO: remove item before list_end
-
     def list_end(self, e: dict[str, Any]) -> None:
         state = self._lists.pop(e["id"], None)
         if not state:
             return
+
         if e["id"] == "help":
             self._ingest_help_items(state.items)
 
             current_page = self._page_by_key(self._current_key)
-            cta_entries: list[tuple[str, _PageSpec]] = []
             if current_page is not None:
-                for key in self._page_order:
-                    page = self._pages[key]
-                    if page.parent_key != current_page.key:
-                        continue
-                    cta_label = (
-                        page.base_args[-1].replace("-", " ").title() if page.base_args else page.key
-                    )
-                    cta_entries.append((cta_label, page))
+                # CTA buttons for child pages
+                requires_input = {
+                    v.get("command", ""): _action_needs_input(v)
+                    for _, v in state.items
+                    if isinstance(v, dict)
+                }
+                cta_entries = [
+                    (p.base_args[-1].replace("-", " ").title() if p.base_args else p.key, p)
+                    for p in self._pages.values()
+                    if p.parent_key == current_page.key
+                ]
+                cta_slot = self.query_one("#cta-slot", Vertical)
+                cta_slot.remove_children()
+                if cta_entries:
+                    row = Horizontal(id="cta-row")
+                    cta_slot.mount(row)
+                    for label, page in cta_entries:
+                        variant = (
+                            "default" if requires_input.get(" ".join(page.base_args)) else "primary"
+                        )
+                        row.mount(Button(label, id=self._kid("cta-", page.key), variant=variant))
 
-            # Build a quick lookup: command_key → whether it has required user inputs.
-            requires_input: dict[str, bool] = {}
-            for _, item_val in state.items:
-                if not isinstance(item_val, dict):
-                    continue
-                cmd = item_val.get("command", "")
-                requires_input[cmd] = _action_needs_input(item_val)
+                # Scope help items to this page's sub-tree when on a sub-page
+                render_items = state.items
+                if len(current_page.base_args) > 1:
+                    prefix = " ".join(current_page.base_args)
+                    scoped = [
+                        (i, v)
+                        for i, v in state.items
+                        if isinstance(v, dict) and str(v.get("command", "")).startswith(prefix)
+                    ]
+                    if scoped:
+                        render_items = scoped
 
-            cta_slot = self.query_one("#cta-slot", Vertical)
-            cta_slot.remove_children()
-            if cta_entries:
-                cta_slot.mount(Static("[bold]Actions[/bold]"))
-                cta_row = Horizontal(id="cta-row")
-                cta_slot.mount(cta_row)
-                for label, page in cta_entries:
-                    cmd_key = " ".join(page.base_args)
-                    variant = "default" if requires_input.get(cmd_key) else "primary"
-                    cta_row.mount(Button(label, id=self._cta_id_for_key(page.key), variant=variant))
-
-        render_items = state.items
-        if e["id"] == "help":
-            current_page = self._page_by_key(self._current_key)
-            if current_page is not None and len(current_page.base_args) > 1:
-                command_prefix = " ".join(current_page.base_args)
-                scoped_items: list[tuple[str, Any]] = []
-                for item_id, value in state.items:
-                    if not isinstance(value, dict):
-                        continue
-                    command = value.get("command")
-                    if isinstance(command, str) and command.startswith(command_prefix):
-                        scoped_items.append((item_id, value))
-                if scoped_items:
-                    render_items = scoped_items
-
-        main = self.query_one("#main", ScrollableContainer)
-        if e["id"] == "help":
-            current_page = self._page_by_key(self._current_key)
-            if current_page is not None:
+                main = self.query_one("#main", ScrollableContainer)
                 form_built = self._mount_action_form(main, current_page, render_items)
                 if form_built:
                     main.mount(
                         Button(
                             "Submit",
-                            id=self._form_submit_id_for_key(current_page.key),
+                            id=self._kid("form-submit-", current_page.key),
                             variant="success",
                         )
                     )
                 else:
-                    # No inputs needed — auto-run the action immediately.
-                    command_key = " ".join(current_page.base_args)
-                    for _, value in render_items:
+                    cmd_key = " ".join(current_page.base_args)
+                    for _, v in render_items:
                         if (
-                            isinstance(value, dict)
-                            and value.get("command") == command_key
-                            and value.get("kind") == "action"
+                            isinstance(v, dict)
+                            and v.get("command") == cmd_key
+                            and v.get("kind") == "action"
                         ):
                             run_args = list(current_page.base_args)
                             self.run_worker(lambda a=run_args: self._run_scop(a), thread=True)
                             break
+
+        main = self.query_one("#main", ScrollableContainer)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
-        for i, (_, value) in enumerate(render_items, 1):
-            prefix = f"{i}." if state.ordered else "•"
+        for _, value in state.items:
             if isinstance(value, dict):
                 cmd = value.get("command", "")
                 desc = value.get("description", "")
-                main.mount(Static(f"  {prefix} [cyan]{cmd}[/cyan]  [dim]{desc}[/dim]"))
-
-                params_value = value.get("params")
-                if isinstance(params_value, list) and params_value:
-                    required_params: list[str] = []
-                    optional_params: list[str] = []
-
-                    for param in params_value:
-                        if not isinstance(param, dict):
-                            continue
-                        name = param.get("name")
-                        if not isinstance(name, str) or not name.strip():
-                            continue
-                        token = name.strip()
-                        short = param.get("short")
-                        if isinstance(short, str) and short.strip():
-                            token = f"{token} ({short.strip()})"
-                        metavar = param.get("metavar")
-                        if isinstance(metavar, str) and metavar.strip():
-                            token = f"{token} {metavar.strip()}"
-
-                        kind = param.get("kind")
-                        required = bool(param.get("required", kind == "positional"))
-                        if required:
-                            required_params.append(token)
-                        else:
-                            optional_params.append(token)
-
-                    if required_params:
-                        main.mount(
-                            Static(f"      [dim]required:[/dim] {', '.join(required_params)}")
-                        )
-                    if optional_params:
-                        main.mount(
-                            Static(f"      [dim]optional:[/dim] {', '.join(optional_params)}")
-                        )
+                main.mount(Static(f"  • [bold]{cmd}[/bold]  [dim]{desc}[/dim]"))
             else:
-                main.mount(Static(f"  {prefix} {value}"))
+                main.mount(Static(f"  • {value}"))
 
-    # PROCESS ─────────────────────────────────────────────────────────────────
+    # ── PROCESS ───────────────────────────────────────────────────────────────
 
     def process_begin(self, e: dict[str, Any]) -> None:
         label = e.get("label", e["id"])
         total = e.get("total")
-        self._procs[e["id"]] = _ProcessState(
-            label=label, total=float(total) if total is not None else None
-        )
-        self._log(f"[cyan]▶[/cyan] {label}{_flag_tags(e)}")
+        self._procs[e["id"]] = label
         main = self.query_one("#main", ScrollableContainer)
-        main.mount(Static(f"[cyan]▶[/cyan] [bold]{label}[/bold]{_flag_tags(e)}", classes="stat"))
+        main.mount(Static(f"[cyan]▶[/cyan] [bold]{label}[/bold]"))
         main.mount(
             ProgressBar(
                 total=float(total) if total is not None else None,
@@ -932,56 +613,36 @@ class ScopTuiApp(App[None]):
         )
 
     def process_update(self, e: dict[str, Any]) -> None:
-        if e["id"] not in self._procs:
-            return
         for bar in self.query(f"#proc-{e['id']}").results(ProgressBar):
+            raw_total = e.get("total")
+            if raw_total is not None and bar.total is None:
+                bar.total = float(raw_total)
             bar.progress = float(e.get("current", 0))
             break
 
     def process_log(self, e: dict[str, Any]) -> None:
-        pri = e.get("pri", 6)
-        msg = e.get("message") or e.get("msg", "")
-        style = "dim" if pri >= 7 else "default"
-        self._log(f"  [dim]│[/dim] [{style}]{msg}[/{style}]")
+        self._log(f"  [dim]│[/dim] {e.get('message') or e.get('msg', '')}")
 
     def process_end(self, e: dict[str, Any]) -> None:
-        proc = self._procs.pop(e["id"], None)
-        label = proc.label if proc else e["id"]
+        label = self._procs.pop(e["id"], e["id"])
         ok = e.get("ok", True)
-        icon = "[green]✓[/green]" if ok else "[red]✗[/red]"
-        self._log(f"  {icon} {label}{_flag_tags(e)}")
+        self._log(f"  {'[green]✓[/green]' if ok else '[red]✗[/red]'} {label}")
         for bar in self.query(f"#proc-{e['id']}").results(ProgressBar):
             bar.remove()
             break
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _flag_tags(e: dict[str, Any]) -> str:
-    parts: list[str] = []
-    if e.get("dry_run"):
-        parts.append("[yellow]dry-run[/yellow]")
-    if e.get("recursive"):
-        parts.append("[blue]recursive[/blue]")
-    if e.get("force"):
-        parts.append("[red]force[/red]")
-    return ("  " + " ".join(parts)) if parts else ""
-
+# ── Dispatch table ────────────────────────────────────────────────────────────
 
 _DISPATCH: dict[str, str] = {
     "PAGE_BEGIN": "page_begin",
     "PAGE_END": "page_end",
     "SCALAR_SET": "scalar_set",
-    "SCALAR_CLEAR": "scalar_clear",
     "TABLE_DECLARE": "table_declare",
     "TABLE_ROW": "table_row",
     "TABLE_UPDATE": "table_update",
-    "TABLE_END": "table_end",
     "LIST_DECLARE": "list_declare",
     "LIST_APPEND": "list_append",
-    "LIST_UPDATE": "list_update",
-    "LIST_REMOVE": "list_remove",
     "LIST_END": "list_end",
     "PROCESS_BEGIN": "process_begin",
     "PROCESS_UPDATE": "process_update",
@@ -1003,32 +664,28 @@ def main() -> None:
         sys.stdout.write(
             "scop-tui — SCOP §10 event stream renderer\n\n"
             "Usage:\n"
-            "  scop-tui                          # standalone with nav\n"
-            "  scop [command] | scop-tui         # pipe a single command\n"
-            "  scop-tui --from events.ndjson     # replay recorded stream\n"
-            '  scop-tui --cmd "scop snapshot"    # run command directly\n\n'
-            "Keys: q quit  tab/shift+tab pane  up/down or j/k rows  ← Back\n"
+            "  scop-tui                       # standalone with nav\n"
+            "  scop [command] | scop-tui      # pipe a single command\n"
+            "  scop-tui --from events.ndjson  # replay recorded stream\n"
+            '  scop-tui --cmd "scop snapshot" # run command directly\n\n'
+            "Keys: q quit  ctrl+l toggle log\n"
         )
         sys.exit(0)
 
     args = sys.argv[1:]
-
     if len(args) >= 2 and args[0] == "--from":
-        with Path(args[1]).open(encoding="utf-8") as f:
+        with pathlib.Path(args[1]).open(encoding="utf-8") as f:
             _consume(f)
         return
-
     if len(args) >= 2 and args[0] == "--cmd":
         try:
             cmd_tokens = shlex.split(args[1], posix=False)
         except ValueError as exc:
-            sys.stderr.write(f"Invalid --cmd value: {exc}\n")
+            sys.stderr.write(f"Invalid --cmd: {exc}\n")
             sys.exit(2)
-
         if not cmd_tokens:
-            sys.stderr.write("Invalid --cmd value: empty command\n")
+            sys.stderr.write("Invalid --cmd: empty command\n")
             sys.exit(2)
-
         result = run_resolved(cmd_tokens, capture_output=True, text=True, check=False)
         if result.stderr:
             sys.stderr.write(result.stderr)
@@ -1036,9 +693,7 @@ def main() -> None:
         if result.returncode != 0:
             sys.exit(result.returncode)
         return
-
     if sys.stdin.isatty():
         _consume()
         return
-
     _consume(sys.stdin, exit_on_eof=True)
