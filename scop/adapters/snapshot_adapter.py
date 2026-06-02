@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +16,21 @@ from scop.ports.snapshot_port import SnapshotPort
 
 _STORE = Path("downloads") / "snapshots"
 _OBJECTS = Path("downloads") / "objects"  # content-addressable blob store
+
+# Directories pruned before descent regardless of hidden-file rules.
+# These are generated/dependency trees: large, reproducible, not worth snapshotting.
+# A future .scopignore will make this configurable per-project.
+_SKIP_DIRS = frozenset({
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+})
 
 
 def _fmt_size(n: int) -> str:
@@ -42,15 +59,89 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _native_find(root: Path) -> list[tuple[str, Path]] | None:
+    """Try fd or find for parallel/native traversal. Returns None if unavailable."""
+    fd = shutil.which("fd") or shutil.which("fdfind")
+    if fd:
+        cmd = [fd, "--type", "f", "--no-ignore"]
+        for d in _SKIP_DIRS:
+            cmd += ["--exclude", d]
+        cmd += [".", str(root)]
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        if proc.returncode == 0:
+            return _parse_native_output(root, proc.stdout.splitlines())
+
+    find = shutil.which("find")
+    if find:
+        prune: list[str] = []
+        for d in sorted(_SKIP_DIRS):
+            if prune:
+                prune.append("-o")
+            prune += ["-name", d]
+        cmd = [
+            find,
+            str(root),
+            "(",
+            *prune,
+            ")",
+            "-prune",
+            "-o",
+            "-type",
+            "f",
+            "!",
+            "-name",
+            ".*",
+            "-print",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        if proc.returncode == 0:
+            return _parse_native_output(root, proc.stdout.splitlines())
+
+    return None
+
+
+def _parse_native_output(root: Path, lines: list[str]) -> list[tuple[str, Path]]:
+    result: list[tuple[str, Path]] = []
+    for line in lines:
+        if not line:
+            continue
+        p = Path(line)
+        try:
+            rel = str(p.relative_to(root))
+        except ValueError:
+            continue
+        if any(part.startswith(".") for part in Path(rel).parts):
+            continue
+        result.append((rel, p))
+    result.sort()
+    return result
+
+
+def _iter_paths(root: Path, *, recursive: bool) -> Iterator[tuple[str, Path]]:
+    """Yield (rel_path, abs_path). Uses fd/find when available, os.walk otherwise."""
+    if recursive:
+        native = _native_find(root)
+        if native is not None:
+            yield from native
+            return
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(
+                d for d in dirnames if not d.startswith(".") and d not in _SKIP_DIRS
+            )
+            for fname in sorted(filenames):
+                if fname.startswith("."):
+                    continue
+                full = Path(dirpath) / fname
+                yield str(full.relative_to(root)), full
+    else:
+        for entry in sorted(root.iterdir()):
+            if entry.is_file() and not entry.name.startswith("."):
+                yield str(entry.relative_to(root)), entry
+
+
 def _scan_files(root: Path, *, recursive: bool) -> Iterator[tuple[str, Path, str, int]]:
     """Yield (rel_path, abs_path, sha256_hex, size_bytes) for each tracked file."""
-    pattern = "**/*" if recursive else "*"
-    for p in sorted(root.glob(pattern)):
-        if not p.is_file():
-            continue
-        if any(part.startswith(".") for part in p.relative_to(root).parts):
-            continue
-        rel = str(p.relative_to(root))
+    for rel, p in _iter_paths(root, recursive=recursive):
         yield rel, p, _hash_file(p), p.stat().st_size
 
 
@@ -129,13 +220,7 @@ class SnapshotAdapter(Adapter, SnapshotPort):
         return records
 
     def count_snapshot_files(self, *, path: str, recursive: bool) -> int:
-        root = Path(path).resolve()
-        pattern = "**/*" if recursive else "*"
-        return sum(
-            1
-            for p in root.glob(pattern)
-            if p.is_file() and not any(part.startswith(".") for part in p.relative_to(root).parts)
-        )
+        return sum(1 for _ in _iter_paths(Path(path).resolve(), recursive=recursive))
 
     def create_snapshot(
         self,
@@ -148,20 +233,13 @@ class SnapshotAdapter(Adapter, SnapshotPort):
     ) -> SnapshotRecord:
         root = Path(path).resolve()
 
-        # Collect entries lazily so on_progress fires incrementally during listing,
-        # not only after the entire tree has been materialised by sorted().
+        # _iter_paths uses os.walk so hidden dirs are pruned before descent,
+        # meaning .git / .venv / __pycache__ etc. are never traversed.
         entries: list[tuple[str, Path]] = []
-        pattern = "**/*" if recursive else "*"
-        for p in root.glob(pattern):
-            if not p.is_file():
-                continue
-            if any(part.startswith(".") for part in p.relative_to(root).parts):
-                continue
-            entries.append((str(p.relative_to(root)), p))
+        for rel, p in _iter_paths(root, recursive=recursive):
+            entries.append((rel, p))
             if on_progress and len(entries) % 100 == 0:
                 on_progress(len(entries), 0)  # total=0 → listing phase
-
-        entries.sort()  # stable sort after collection for a consistent manifest
         file_total = len(entries)
         if on_progress:
             on_progress(0, file_total)  # total known — switch to determinate
