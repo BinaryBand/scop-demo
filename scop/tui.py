@@ -544,7 +544,8 @@ class ScopTuiApp(App[None]):
                 ]
                 if cta_entries:
                     row = Horizontal(id="cta-row")
-                    main.mount(row)
+                    first = next(iter(main.children), None)
+                    main.mount(row, before=first) if first else main.mount(row)
                     for label, page in cta_entries:
                         variant = (
                             "default" if requires_input.get(" ".join(page.base_args)) else "primary"
