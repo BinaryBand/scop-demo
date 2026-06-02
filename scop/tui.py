@@ -446,18 +446,17 @@ class ScopTuiApp(App[None]):
     # ── Routing ───────────────────────────────────────────────────────────────
 
     def _route(self, event: dict[str, Any]) -> None:
+        handler = _DISPATCH.get(event.get("msgid", ""))
+        if handler is not None:
+            getattr(self, handler)(event)
+            return
         pri: int = event.get("pri", 6)
         if pri <= 3:
             self.push_screen(_ErrorModal(event.get("msg", "")))
-            return
-        if pri == 4:
+        elif pri == 4:
             self.notify(event.get("msg", ""), severity="warning")
-            return
-        handler = _DISPATCH.get(event.get("msgid", ""))
-        if handler is None:
+        else:
             self._log(f"[dim]{event.get('msg', '')}[/dim]")
-            return
-        getattr(self, handler)(event)
 
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)
@@ -655,10 +654,17 @@ class ScopTuiApp(App[None]):
     def process_end(self, e: dict[str, Any]) -> None:
         label = self._procs.pop(e["id"], e["id"])
         ok = e.get("ok", True)
-        self._log(f"  {'[green]✓[/green]' if ok else '[red]✗[/red]'} {label}")
         for bar in self.query(f"#proc-{e['id']}").results(ProgressBar):
             bar.remove()
             break
+        if ok:
+            self._log(f"  [green]✓[/green] {label}")
+        else:
+            pri: int = e.get("pri", 6)
+            if pri <= 3:
+                self.push_screen(_ErrorModal(e.get("msg", label)))
+            else:
+                self.notify(e.get("msg", label), severity="warning")
 
 
 # ── Dispatch table ────────────────────────────────────────────────────────────
