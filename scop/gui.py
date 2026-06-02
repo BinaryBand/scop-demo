@@ -487,10 +487,13 @@ _TEMPLATE = """<!DOCTYPE html>
     }
 
     function mkForm(item) {
-      // Include positionals + value-taking flags (those with a metavar).
+      // Required positionals, required flags, and flags that have a default.
+      // Excludes utility flags like --output/--quiet that are present on every command.
       const params = (item.params ?? []).filter(p =>
-        p && typeof p === 'object' &&
-        (p.kind === 'positional' || (p.kind === 'flag' && p.metavar))
+        p && typeof p === 'object' && (
+          (p.kind === 'positional' && p.required !== false) ||
+          (p.kind === 'flag' && p.metavar && (p.required || 'default' in p))
+        )
       );
 
       const wrap = document.createElement('div');
@@ -694,7 +697,10 @@ _TEMPLATE = """<!DOCTYPE html>
             if (!x || typeof x !== 'object' || !x.command) { plain.push(x); return; }
             const tokens = x.command.trim().split(/\\s+/).filter(t => !t.startsWith('-'));
             const hasValueParam = (x.params ?? []).some(p =>
-              p && (p.kind === 'positional' || (p.kind === 'flag' && p.metavar))
+              p && (
+                (p.kind === 'positional' && p.required !== false) ||
+                (p.kind === 'flag' && p.metavar && (p.required || 'default' in p))
+              )
             );
             if (isSubpage) {
               formItems.push(x);
