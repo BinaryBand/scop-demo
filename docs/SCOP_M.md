@@ -114,7 +114,7 @@ REQUIRED. Appears exactly once.
 name         = "scop"
 version      = "0.1.0"
 description  = "File and directory snapshotter"
-scop_version = "0.1.0"
+scop_version = "0.1.2-draft"
 ```
 
 ---
@@ -237,6 +237,7 @@ The `name` field is the display label shown in the GUI. The `exec` field is the 
 | `name` | string | ✓ | Display label shown in GUI and `--help` output |
 | `exec` | string | | CLI token to invoke. Defaults to `name` if omitted. MUST be provided when `name` differs from the CLI token |
 | `description` | string | ✓ | Maps to `LIST_APPEND.value.description` in `--help` output |
+| `kind` | string | | `"action"` (executes in the current room) or `"group"` (navigates to a subroom). Default: `"action"`. Maps to `LIST_APPEND.value.kind` in `--help` output |
 | `navigates` | string | | Room `id` this command navigates to after execution. MUST match SCOP §6 room derivation. Omit if the command stays in the current room |
 
 > **Routing rule:** `navigates` MUST equal the room `id` that SCOP will derive at runtime from the invocation. For `ourapp snap [args]`, SCOP derives room `"snap"`, so `navigates = "snap"`. Setting `navigates` to an undeclared room `id` is a conformance violation.
@@ -422,6 +423,16 @@ icon     = ":package:"
   description = "List all snapshots"
   navigates   = "log"
 
+# ── Log room ─────────────────────────────────────────────────────────────────
+[[room]]
+id       = "log"
+title    = "Log"
+subtitle = "Snapshot history"
+icon     = ":scroll:"
+
+  [room.list]
+  schema = ["name", "files", "size", "date"]
+
 # ── Snap room ────────────────────────────────────────────────────────────────
 [[room]]
 id       = "snap"
@@ -524,10 +535,11 @@ icon     = ":floppy_disk:"
   description = "Restore a snapshot"
 
     [[room.command.param]]
-    name     = "name"
-    kind     = "positional"
-    type     = "string"
-    required = true
+    name        = "name"
+    kind        = "positional"
+    type        = "string"
+    required    = true
+    description = "Snapshot name to restore"
 ```
 
 ---
@@ -548,11 +560,11 @@ icon     = ":floppy_disk:"
 
 **A conforming manifest SHOULD:**
 
-10. Include a `[[room]]` entry for every room the application emits events in
-11. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
-12. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
-13. Declare universal flags in `[[app.global_param]]` rather than repeating them per command
-14. Be kept semantically equivalent to runtime `--help` / `--status` / `--list` output (§6)
+1. Include a `[[room]]` entry for every room the application emits events in
+2. Declare `[[room.stat]]` entries for every `SCALAR_SET` emitted by `--status`
+3. Declare `[room.list]` for every room that emits `TABLE_DECLARE` via `--list`
+4. Declare universal flags in `[[app.global_param]]` rather than repeating them per command
+5. Be kept semantically equivalent to runtime `--help` / `--status` / `--list` output (§6)
 
 ---
 

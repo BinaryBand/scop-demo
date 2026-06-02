@@ -26,12 +26,12 @@ SCOP defines a wire format, event vocabulary, room model, GNU flag contracts, an
 
 SCOP is a composition, not a replacement:
 
-| Layer | Standard | Role |
+| Layer         | Standard            | Role                    |
 | --- | --- | --- |
 | Input | POSIX.1 Ch.12 + GNU | flags, subcommands |
-| Envelope | RFC 5424 | event fields, severity |
-| Serialisation | NDJSON | wire format |
-| Output | SCOP | vocabulary + page model |
+| Envelope | RFC 5424 | event fields, severity  |
+| Serialisation | NDJSON              | wire format             |
+| Output        | SCOP                | vocabulary + page model |
 
 ---
 
@@ -50,14 +50,14 @@ SCOP is a composition, not a replacement:
 
 ## 3. Design Principles
 
-| Principle | Rule |
-| --- | --- |
-| CLI first | `msg` MUST always be a complete, human-readable line |
-| Standard-grounded | SCOP MUST NOT conflict with POSIX or GNU; it defers to them |
-| Data-typed | MSGIDs name the data type, not the display form |
-| Rooms derived | Room is always derived from the command path — never declared |
-| Zero app knowledge | A consumer MUST build any page from the stream alone |
-| Additive | Consumers MUST ignore unknown MSGIDs and fields |
+| Principle          | Rule                                                          |
+| ------------------ | ------------------------------------------------------------- |
+| CLI first          | `msg` MUST always be a complete, human-readable line          |
+| Standard-grounded  | SCOP MUST NOT conflict with POSIX or GNU; it defers to them   |
+| Data-typed         | MSGIDs name the data type, not the display form               |
+| Rooms derived      | Room is always derived from the command path — never declared |
+| Zero app knowledge | A consumer MUST build any page from the stream alone          |
+| Additive           | Consumers MUST ignore unknown MSGIDs and fields               |
 
 ---
 
@@ -67,19 +67,21 @@ SCOP is a composition, not a replacement:
 
 Applications SHOULD conform to POSIX.1 Utility Syntax Guidelines (Chapter 12): single-hyphen short options (`-f`), `--` to end option processing, operands following options. Applications SHOULD implement GNU standard flags; each flag's event contract is defined in §8.
 
-| Flag | Short | Meaning |
-| --- | --- | --- |
-| `--help` | `-h` | Emit available commands and flags; exit |
-| `--version` | | Emit version information; exit |
-| `--list` | `-l` | List items without taking other action |
-| `--status` | | Emit current application state |
-| `--all` | `-a` | Expand scope of list or status output |
-| `--quiet` | `-q` | Suppress non-essential output |
-| `--verbose` | `-v` | Include debug-level output |
-| `--dry-run` | `-n` | Execute without side effects |
-| `--recursive` | `-r` | Operate recursively |
-| `--force` | `-f` | Override safety checks |
-| `--output` | `-o` | Redirect output to file |
+| Flag          | Short | Category |
+| ------------- | ----- | -------- |
+| `--help`      | `-h`  | query    |
+| `--version`   | `-`   | query    |
+| `--list`      | `-l`  | query    |
+| `--status`    | `-`   | query    |
+| `--all`       | `-a`  | mode     |
+| `--quiet`     | `-q`  | mode     |
+| `--verbose`   | `-v`  | mode     |
+| `--dry-run`   | `-n`  | modifier |
+| `--recursive` | `-r`  | modifier |
+| `--force`     | `-f`  | modifier |
+| `--output`    | `-o`  | other †  |
+
+_† Contract not yet defined; see pending additions._
 
 Inverse flags (`--no-quiet`, `--no-recursive`, etc.) SHOULD be supported where the positive flag is supported.
 
@@ -89,22 +91,26 @@ Every SCOP event is a serialised RFC 5424 message.
 
 **Required:**
 
-| Field | Key | Description |
-| --- | --- | --- |
-| PRI | `pri` | Facility (16) + severity, encoded as integer |
-| MSGID | `msgid` | SCOP event type (§7) |
-| MSG | `msg` | Complete, human-readable line |
+| Field | Key     | Description                                  |
+| ----- | ------- | -------------------------------------------- |
+| PRI   | `pri`   | Facility (16) + severity, encoded as integer |
+| MSGID | `msgid` | SCOP event type (§7)                         |
+| MSG   | `msg`   | Complete, human-readable line                |
 
 **Optional:** `ts` (ISO 8601 timestamp), `app` (application name), `pid` (process id).
 
-**Severity → GUI rendering:**
+## Severity → GUI rendering
 
-| Severity | Value | Rendering |
-| --- | --- | --- |
-| EMERG–ERR | 0–3 | error modal |
-| WARNING | 4 | warning banner |
-| NOTICE–INFO | 5–6 | log line |
-| DEBUG | 7 | suppressed by default |
+| Severity | Value | Rendering                        |
+| -------- | ----- | -------------------------------- |
+| EMERG    | 0     | error modal (blocking)           |
+| ALERT    | 1     | error modal (blocking)           |
+| CRIT     | 2     | error modal (blocking)           |
+| ERR      | 3     | error modal (blocking)           |
+| WARNING  | 4     | warning banner                   |
+| NOTICE   | 5     | log line                         |
+| INFO     | 6     | log line                         |
+| DEBUG    | 7     | suppressed by default (see §8.2) |
 
 ---
 
@@ -128,12 +134,12 @@ A **room** is derived mechanically from the subcommand path — it is never decl
 
 **Derivation rule:** `room = subcommand tokens joined by "/"`, excluding all flag tokens (`-f`, `--flag`) and all positional operand values. Only the structural subcommand path tokens are included — not the runtime values passed to those subcommands. Root room = `null`.
 
-| Invocation | Room |
-| --- | --- |
-| `ourapp` | `null` |
-| `ourapp snapshot` | `"snapshot"` |
-| `ourapp snapshot diff` | `"snapshot/diff"` |
-| `ourapp snapshot --list` | `"snapshot"` |
+| Invocation                               | Room              |
+| ---------------------------------------- | ----------------- |
+| `ourapp`                                 | `null`            |
+| `ourapp snapshot`                        | `"snapshot"`      |
+| `ourapp snapshot diff`                   | `"snapshot/diff"` |
+| `ourapp snapshot --list`                 | `"snapshot"`      |
 | `ourapp snapshot diff snap-001 snap-002` | `"snapshot/diff"` |
 
 The last example shows that positional operand values (`snap-001`, `snap-002`) are excluded. Room strings MUST be stable across versions. Changing a room string is a breaking change.
@@ -148,19 +154,19 @@ All MSGIDs are grouped into families by data type. Consumers route events to GUI
 
 Every stream MUST begin with `PAGE_BEGIN` and end with `PAGE_END`. `PAGE_END.msg` SHOULD be empty.
 
-| MSGID | Required | Optional |
-| --- | --- | --- |
+| MSGID        | Required        | Optional                     |
+| ------------ | --------------- | ---------------------------- |
 | `PAGE_BEGIN` | `room`, `title` | `subtitle`, `icon`, `intent` |
-| `PAGE_END` | `room` | |
+| `PAGE_END`   | `room`          |                              |
 
 The `icon` field, when present, MUST be a GitHub gemoji code of the form `:name:` (e.g., `:camera_with_flash:`). Raw Unicode codepoints MUST NOT be used. CLI renderers print or ignore the string as-is; GUI renderers map it to an icon asset.
 
 The `intent` field declares how the consumer MUST integrate this stream into the current view. If omitted, consumers MUST treat it as `"query"`.
 
-| `intent` value | Consumer behaviour |
-| --- | --- |
-| `"query"` | Build or replace the page view. All slots are updated. Used for `--status`, `--list`, `--help`, and navigation. |
-| `"action"` | An operation is running. Route `PROCESS_*` events to the activity slot only. All other slots remain intact. |
+| `intent` value | Consumer behaviour                                                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| `"query"`      | Build or replace the page view. All slots are updated. Used for `--status`, `--list`, `--help`, and navigation. |
+| `"action"`     | An operation is running. Route `PROCESS_*` events to the activity slot only. All other slots remain intact.     |
 
 ```json
 {"pri": 6, "msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": ":camera_with_flash:", "intent": "query", "msg": "=== Snapshots ==="}
@@ -171,12 +177,12 @@ The `intent` field declares how the consumer MUST integrate this stream into the
 
 Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `total` when unknown; consumers SHOULD render an indeterminate indicator. `dry_run: true` MUST be present on all events when `--dry-run` is active.
 
-| MSGID | Required | Optional |
-| --- | --- | --- |
-| `PROCESS_BEGIN` | `id`, `label` | `total`, `dry_run`, `recursive` |
-| `PROCESS_UPDATE` | `id`, `current` | `total`, `label` |
-| `PROCESS_END` | `id`, `ok` | `dry_run` |
-| `PROCESS_LOG` | `id` | |
+| MSGID            | Required        | Optional                        |
+| ---------------- | --------------- | ------------------------------- |
+| `PROCESS_BEGIN`  | `id`, `label`   | `total`, `dry_run`, `recursive` |
+| `PROCESS_UPDATE` | `id`, `current` | `total`, `label`                |
+| `PROCESS_END`    | `id`, `ok`      | `dry_run`                       |
+| `PROCESS_LOG`    | `id`            |                                 |
 
 `PROCESS_LOG` carries its payload in `msg` only — no separate `message` field. `msg` is already globally required and serves as the log line directly.
 
@@ -196,10 +202,10 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 - `bytes` — `value` MUST be a JSON integer representing the absolute byte count (e.g. `12582912`). The `unit` field SHOULD carry the display denomination (e.g. `"bytes"`, `"KB"`, `"MB"`); formatting is the consumer's responsibility.
 - `duration` — `value` MUST be an ISO 8601 duration string (e.g. `"PT1M30S"`). Raw integers MUST NOT be used; the unit is ambiguous without the format.
 
-| MSGID | Required | Optional |
-| --- | --- | --- |
-| `SCALAR_SET` | `id`, `label`, `value`, `type` | `unit`, `display_hint` |
-| `SCALAR_CLEAR` | `id` | |
+| MSGID          | Required                       | Optional               |
+| -------------- | ------------------------------ | ---------------------- |
+| `SCALAR_SET`   | `id`, `label`, `value`, `type` | `unit`, `display_hint` |
+| `SCALAR_CLEAR` | `id`                           |                        |
 
 `display_hint` is OPTIONAL and advisory; consumers MAY ignore it. Defined values: `"badge"`. Producers MUST NOT use `display_hint` values not defined in this spec.
 
@@ -213,13 +219,13 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 
 `ordered: true` renders as numbered; `false` as bullets. `value` MAY be scalar or a JSON object.
 
-| MSGID | Required | Optional |
-| --- | --- | --- |
-| `LIST_DECLARE` | `id`, `label`, `ordered` | |
-| `LIST_APPEND` | `id`, `item_id`, `value` | |
-| `LIST_UPDATE` | `id`, `item_id`, `value` | |
-| `LIST_REMOVE` | `id`, `item_id` | |
-| `LIST_END` | `id` | |
+| MSGID          | Required                 | Optional |
+| -------------- | ------------------------ | -------- |
+| `LIST_DECLARE` | `id`, `label`, `ordered` |          |
+| `LIST_APPEND`  | `id`, `item_id`, `value` |          |
+| `LIST_UPDATE`  | `id`, `item_id`, `value` |          |
+| `LIST_REMOVE`  | `id`, `item_id`          |          |
+| `LIST_END`     | `id`                     |          |
 
 ```json
 {"pri": 6, "msgid": "LIST_DECLARE", "room": "snapshot", "id": "changes", "label": "Changed files", "ordered": false, "msg": "Changed files"}
@@ -232,12 +238,12 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 
 `schema` MUST be an ordered array of column names. `values` MUST be a JSON object keyed by column name. `display_hint` is OPTIONAL and advisory (`"table"`, `"chart"`, `"cards"`); consumers MAY ignore it.
 
-| MSGID | Required | Optional |
-| --- | --- | --- |
-| `TABLE_DECLARE` | `id`, `label`, `schema` | `display_hint` |
-| `TABLE_ROW` | `id`, `row_id`, `values` | |
-| `TABLE_UPDATE` | `id`, `row_id`, `values` | |
-| `TABLE_END` | `id` | |
+| MSGID           | Required                 | Optional       |
+| --------------- | ------------------------ | -------------- |
+| `TABLE_DECLARE` | `id`, `label`, `schema`  | `display_hint` |
+| `TABLE_ROW`     | `id`, `row_id`, `values` |                |
+| `TABLE_UPDATE`  | `id`, `row_id`, `values` |                |
+| `TABLE_END`     | `id`                     |                |
 
 ```json
 {"pri": 6, "msgid": "TABLE_DECLARE", "room": "snapshot", "id": "snaps", "label": "Snapshots", "schema": ["name", "files", "size", "date"], "msg": "Snapshots"}
@@ -254,6 +260,7 @@ Lifecycle: `PROCESS_BEGIN` → `PROCESS_UPDATE` ×n → `PROCESS_END`. Omit `tot
 Query flags produce data output and exit. Each response MUST be wrapped in `PAGE_BEGIN` / `PAGE_END`.
 
 **`--help` / `-h`**
+
 ```
 PAGE_BEGIN (room: current, title: command name, intent: "query")
 LIST_DECLARE (id: "help", ordered: false)
@@ -264,25 +271,25 @@ PAGE_END
 
 **Help-item schema** — normative definition of `value` for every `LIST_APPEND` where `id = "help"`:
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `command` | string | ✓ | CLI token for this entry (e.g. `"snap"`) |
-| `description` | string | ✓ | Human-readable description |
-| `kind` | string | | `"action"` (executable leaf) or `"group"` (navigates to subroom). Default: `"action"` |
-| `params` | array | Conditional | MUST be present and non-empty for `kind = "action"` entries that accept one or more inputs. MAY be omitted for `kind = "group"` entries or parameter-free actions. |
+| Field         | Type   | Required    | Description                                                                                                                                                        |
+| ------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `command`     | string | ✓           | CLI token for this entry (e.g. `"snap"`)                                                                                                                           |
+| `description` | string | ✓           | Human-readable description                                                                                                                                         |
+| `kind`        | string |             | `"action"` (executable leaf) or `"group"` (navigates to subroom). Default: `"action"`                                                                              |
+| `params`      | array  | Conditional | MUST be present and non-empty for `kind = "action"` entries that accept one or more inputs. MAY be omitted for `kind = "group"` entries or parameter-free actions. |
 
 **Param object** (each element of `params`):
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | ✓ | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`) |
-| `kind` | string | ✓ | `"flag"` or `"positional"` |
-| `type` | string | | One of the types defined in SCOP-M §5. Default: `"string"` |
-| `short` | string | | Short alias (e.g. `"-p"`). Valid for `kind = "flag"` only |
-| `metavar` | string | | Placeholder in usage line (e.g. `"PATH"`, `"SNAPSHOT"`) |
-| `required` | boolean | | Default: `true` for positionals, `false` for flags |
-| `repeatable` | boolean | | Whether the param may appear multiple times. Default: `false` |
-| `description` | string | | Human-readable description |
+| Field         | Type    | Required | Description                                                       |
+| ------------- | ------- | -------- | ----------------------------------------------------------------- |
+| `name`        | string  | ✓        | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`) |
+| `kind`        | string  | ✓        | `"flag"` or `"positional"`                                        |
+| `type`        | string  |          | One of the types defined in SCOP-M §5. Default: `"string"`        |
+| `short`       | string  |          | Short alias (e.g. `"-p"`). Valid for `kind = "flag"` only         |
+| `metavar`     | string  |          | Placeholder in usage line (e.g. `"PATH"`, `"SNAPSHOT"`)           |
+| `required`    | boolean |          | Default: `true` for positionals, `false` for flags                |
+| `repeatable`  | boolean |          | Whether the param may appear multiple times. Default: `false`     |
+| `description` | string  |          | Human-readable description                                        |
 
 **Ordering within `params`:** positionals MUST precede flags. Among flags, required flags MUST precede optional. Within each group, alphabetical by `name`.
 
@@ -344,25 +351,27 @@ LIST_DECLARE → LIST_APPEND ×n → LIST_END   (items are scalar)
 PAGE_END
 ```
 
+> **Tiebreaker rule:** use `TABLE` when items have two or more named fields (i.e. the producer would naturally model them as a struct or dict row); use `LIST` when items are scalars or single-value strings. When in doubt, `TABLE` with a single-column schema is valid.
+
 ### 8.2 Mode Flags
 
 Mode flags adjust which events are emitted. They produce no events of their own. `--quiet` and `--verbose` are mutually exclusive; `--verbose` MUST take precedence.
 
-| Flag | Effect |
-| --- | --- |
-| `--quiet` / `-q` | MUST suppress `PROCESS_LOG` and `PROCESS_UPDATE`. MUST NOT suppress `PAGE_BEGIN`, `PAGE_END`, `PROCESS_BEGIN`, `PROCESS_END`, `SCALAR_SET`, `LIST_*`, `TABLE_*`, or any event with `pri ≤ 4`. |
-| `--verbose` / `-v` | MUST include `pri = 7` events |
-| `--all` / `-a` | MUST expand scope of `LIST` and `TABLE` output |
+| Flag               | Effect                                                                                                                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--quiet` / `-q`   | MUST suppress `PROCESS_LOG` and `PROCESS_UPDATE`. MUST NOT suppress `PAGE_BEGIN`, `PAGE_END`, `PROCESS_BEGIN`, `PROCESS_END`, `SCALAR_SET`, `LIST_*`, `TABLE_*`, or any event with `pri ≤ 4`. |
+| `--verbose` / `-v` | MUST include `pri = 7` events                                                                                                                                                                 |
+| `--all` / `-a`     | MUST expand scope of `LIST` and `TABLE` output                                                                                                                                                |
 
 ### 8.3 Process Modifier Flags
 
 Modifier flags annotate `PROCESS_*` events with additional fields. No new MSGIDs are emitted.
 
-| Flag | Added field | Value |
-| --- | --- | --- |
-| `--dry-run` / `-n` | `dry_run` | `true` |
+| Flag                 | Added field | Value  |
+| -------------------- | ----------- | ------ |
+| `--dry-run` / `-n`   | `dry_run`   | `true` |
 | `--recursive` / `-r` | `recursive` | `true` |
-| `--force` / `-f` | `force` | `true` |
+| `--force` / `-f`     | `force`     | `true` |
 
 ---
 
@@ -378,24 +387,26 @@ ourapp [subcommand] --help     →  actions
 
 **Slot map:**
 
-| Slot | Flag | MSGID | GUI rendering |
-| --- | --- | --- | --- |
-| Page chrome | any | `PAGE_BEGIN` | title, subtitle, icon |
-| Stats | `--status` | `SCALAR_SET` | stat cards |
-| Content | `--list` | `TABLE` or `LIST` | grid, list |
-| Actions | `--help` | `LIST` (id="help") | buttons, palette |
-| Activity | any command | `PROCESS_*` | progress, spinner |
+| Slot        | Flag        | MSGID              | GUI rendering         |
+| ----------- | ----------- | ------------------ | --------------------- |
+| Page chrome | any         | `PAGE_BEGIN`       | title, subtitle, icon |
+| Stats       | `--status`  | `SCALAR_SET`       | stat cards            |
+| Content     | `--list`    | `TABLE` or `LIST`  | grid, list            |
+| Actions     | `--help`    | `LIST` (id="help") | buttons, palette      |
+| Activity    | any command | `PROCESS_*`        | progress, spinner     |
+
+> **Routing note:** the `intent` field on `PAGE_BEGIN` — not the triggering flag — is the consumer's actual routing discriminant. `"query"` updates or replaces the page; `"action"` opens an activity overlay leaving all other slots intact. See §10 for the full routing table.
 
 Each call is independent. A page MAY be built from a subset.
 
 **Optional slots** (advisory, no new MSGIDs):
 
-| Slot | Convention |
-| --- | --- |
-| Description | `SCALAR_SET` with `id="page.description"` |
-| Chart | `TABLE_DECLARE` with `display_hint: "chart"` |
-| Empty state | `SCALAR_SET` with `id="page.empty"` |
-| Badge | `SCALAR_SET` with `display_hint: "badge"` |
+| Slot        | Convention                                   |
+| ----------- | -------------------------------------------- |
+| Description | `SCALAR_SET` with `id="page.description"`    |
+| Chart       | `TABLE_DECLARE` with `display_hint: "chart"` |
+| Empty state | `SCALAR_SET` with `id="page.empty"`          |
+| Badge       | `SCALAR_SET` with `display_hint: "badge"`    |
 
 **Full page manifest example** (`ourapp snapshot`) — help entries shown without `params` for brevity; conformance requires `params` for all `kind = "action"` entries that accept inputs (§8.1):
 
@@ -414,6 +425,7 @@ Each call is independent. A page MAY be built from a subset.
 ```
 
 **CLI output** (msg fields only):
+
 ```text
 === Snapshots ===
 Tracked files: 1042
@@ -432,22 +444,22 @@ Commands
 
 A conforming consumer routes events using this table. No application knowledge is required.
 
-| MSGID / condition | Slot | Notes |
-| --- | --- | --- |
-| `PAGE_BEGIN` where `intent: "query"`, same room | update page | merge slot content; existing slots not covered by this stream persist |
-| `PAGE_BEGIN` where `intent: "query"`, different room | replace page | navigate to new room; all slots replaced |
-| `PAGE_BEGIN` where `intent: "action"` | open activity overlay | activity slot only; all other slots unchanged |
-| `SCALAR_SET` | stats area | stat card |
-| `TABLE_*` | content area | table, grid, or chart |
-| `LIST_*` where `id="help"` | actions area | buttons or command palette |
-| `LIST_*` otherwise | content area | list |
-| `PROCESS_*` | activity indicator | progress bar or spinner |
-| `PAGE_END` where `intent: "query"` | end of stream | slot update complete; page remains visible |
-| `PAGE_END` where `intent: "action"` | end of stream | close activity overlay |
-| `pri` 0–3 | error modal | blocking |
-| `pri` 4 | warning banner | non-blocking |
-| `pri` 5–6 | log area | append |
-| `pri` 7 | suppressed | unless `--verbose` |
+| MSGID / condition                                    | Slot                  | Notes                                                                 |
+| ---------------------------------------------------- | --------------------- | --------------------------------------------------------------------- |
+| `PAGE_BEGIN` where `intent: "query"`, same room      | update page           | merge slot content; existing slots not covered by this stream persist |
+| `PAGE_BEGIN` where `intent: "query"`, different room | replace page          | navigate to new room; all slots replaced                              |
+| `PAGE_BEGIN` where `intent: "action"`                | open activity overlay | activity slot only; all other slots unchanged                         |
+| `SCALAR_SET`                                         | stats area            | stat card                                                             |
+| `TABLE_*`                                            | content area          | table, grid, or chart                                                 |
+| `LIST_*` where `id="help"`                           | actions area          | buttons or command palette                                            |
+| `LIST_*` otherwise                                   | content area          | list                                                                  |
+| `PROCESS_*`                                          | activity indicator    | progress bar or spinner                                               |
+| `PAGE_END` where `intent: "query"`                   | end of stream         | slot update complete; page remains visible                            |
+| `PAGE_END` where `intent: "action"`                  | end of stream         | close activity overlay                                                |
+| `pri` 0-3                                            | error modal           | blocking                                                              |
+| `pri` 4                                              | warning banner        | non-blocking                                                          |
+| `pri` 5-6                                            | log area              | append                                                                |
+| `pri` 7                                              | suppressed            | unless `--verbose`                                                    |
 
 Unknown MSGIDs MUST be routed to the log area using `msg`. Unknown fields MUST be ignored.
 

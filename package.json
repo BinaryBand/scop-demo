@@ -1,0 +1,39 @@
+{
+  "name": "scop-config",
+  "private": true,
+  "prettier": {
+    "trailingComma": "none",
+    "proseWrap": "preserve",
+    "overrides": [
+      {
+        "files": "*.md",
+        "options": {
+          "proseWrap": "preserve"
+        }
+      },
+      {
+        "files": [
+          "*.yml",
+          "*.yaml"
+        ],
+        "options": {
+          "proseWrap": "preserve"
+        }
+      }
+    ]
+  },
+  "markdownlint": {
+    "default": true,
+    "MD013": false,
+    "MD024": {
+      "siblings_only": true
+    },
+    "MD046": {
+      "style": "fenced"
+    },
+    "MD060": {
+      "style": "aligned",
+      "aligned_delimiter": true
+    }
+  }
+}

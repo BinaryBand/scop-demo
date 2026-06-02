@@ -92,6 +92,7 @@ class ScopTuiApp(App[None]):
     #nav { width: 20; border-right: tall $primary; }
     #right { width: 1fr; }
     #back-btn { margin: 0 1; width: auto; display: none; }
+    #cta-row { height: auto; margin-bottom: 1; }
     #cta-row Button { margin-right: 1; }
     #main { height: 1fr; padding: 0 1; }
     #action-form { height: auto; margin-bottom: 1; }
@@ -129,7 +130,6 @@ class ScopTuiApp(App[None]):
                 yield ListView(id="nav-menu")
             with Vertical(id="right"):
                 yield Button("← Back", id="back-btn", variant="default")
-                yield Vertical(id="cta-slot")
                 yield ScrollableContainer(id="main")
         with ScrollableContainer(id="activity"):
             yield RichLog(id="log")
@@ -443,7 +443,6 @@ class ScopTuiApp(App[None]):
         self._composite_page_started = self._composite_active
         self.title = e.get("title") or e.get("room") or "scop"
         self.sub_title = e.get("subtitle", "")
-        self.query_one("#cta-slot", Vertical).remove_children()
         self.query_one("#main", ScrollableContainer).remove_children()
         self._tables.clear()
         self._lists.clear()
@@ -525,6 +524,8 @@ class ScopTuiApp(App[None]):
         if not state:
             return
 
+        main = self.query_one("#main", ScrollableContainer)
+
         if e["id"] == "help":
             self._ingest_help_items(state.items)
 
@@ -541,11 +542,9 @@ class ScopTuiApp(App[None]):
                     for p in self._pages.values()
                     if p.parent_key == current_page.key
                 ]
-                cta_slot = self.query_one("#cta-slot", Vertical)
-                cta_slot.remove_children()
                 if cta_entries:
                     row = Horizontal(id="cta-row")
-                    cta_slot.mount(row)
+                    main.mount(row)
                     for label, page in cta_entries:
                         variant = (
                             "default" if requires_input.get(" ".join(page.base_args)) else "primary"
@@ -564,7 +563,6 @@ class ScopTuiApp(App[None]):
                     if scoped:
                         render_items = scoped
 
-                main = self.query_one("#main", ScrollableContainer)
                 form_built = self._mount_action_form(main, current_page, render_items)
                 if form_built:
                     main.mount(
@@ -586,7 +584,6 @@ class ScopTuiApp(App[None]):
                             self.run_worker(lambda a=run_args: self._run_scop(a), thread=True)
                             break
 
-        main = self.query_one("#main", ScrollableContainer)
         main.mount(Static(f"[bold]{state.label}[/bold]"))
         for _, value in state.items:
             if isinstance(value, dict):
