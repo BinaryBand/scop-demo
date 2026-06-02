@@ -13,11 +13,13 @@ from flask import Flask, render_template_string
 
 _app = Flask(__name__)
 
-# Fallback Material Icons for known root commands; unknown commands get "circle".
 _ICONS: dict[str, str] = {
     "snapshot": "photo_camera",
     "config": "settings",
 }
+
+# Commands run per root page (mirrors tui.py composite query_flags for depth-0 pages).
+_PAGE_FLAGS: list[list[str]] = [["--list", "--all"], ["--status"], ["--help"]]
 
 
 @dataclass
@@ -61,7 +63,6 @@ def _nav_pages() -> list[_NavPage]:
             tokens = [t for t in shlex.split(command, posix=False) if not t.startswith("-")]
         except ValueError:
             continue
-        # Root pages have exactly one subcommand token.
         if len(tokens) != 1 or tokens[0] in seen:
             continue
         key = tokens[0]
@@ -104,6 +105,19 @@ _TEMPLATE = """<!DOCTYPE html>
       padding: 20px 16px 72px;
     }
 
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+
+    .raw-output {
+      margin-top: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
     .bottom-nav {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -134,9 +148,6 @@ _TEMPLATE = """<!DOCTYPE html>
 
     .nav-tab.active { color: #bb86fc; }
     .nav-tab .material-icons { font-size: 22px; }
-
-    .tab-page { display: none; }
-    .tab-page.active { display: block; }
   </style>
 </head>
 <body>
@@ -145,6 +156,7 @@ _TEMPLATE = """<!DOCTYPE html>
     {% for page in pages %}
     <div id="page-{{ page.key }}" class="tab-page{% if loop.first %} active{% endif %}">
       <h2>{{ page.label }}</h2>
+      <pre class="raw-output">Loading…</pre>
     </div>
     {% endfor %}
   </main>
@@ -165,14 +177,33 @@ _TEMPLATE = """<!DOCTYPE html>
       mdc.ripple.MDCRipple.attachTo(el);
     });
 
+    const loaded = new Set();
+
+    async function loadTab(key) {
+      if (loaded.has(key)) return;
+      loaded.add(key);
+      const pre = document.querySelector(`#page-${key} .raw-output`);
+      try {
+        const res = await fetch(`/api/page/${key}`);
+        pre.textContent = await res.text();
+      } catch (e) {
+        pre.textContent = `Error: ${e}`;
+      }
+    }
+
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById(`page-${tab.dataset.page}`).classList.add('active');
+        loadTab(tab.dataset.page);
       });
     });
+
+    // Load the first tab on startup.
+    const firstTab = document.querySelector('.nav-tab');
+    if (firstTab) loadTab(firstTab.dataset.page);
   </script>
 </body>
 </html>
@@ -182,6 +213,26 @@ _TEMPLATE = """<!DOCTYPE html>
 @_app.route("/")
 def index() -> str:
     return render_template_string(_TEMPLATE, pages=_nav_pages())
+
+
+@_app.route("/api/page/<key>")
+def page_data(key: str) -> str:
+    exe = shutil.which("scop") or "scop"
+    output: list[str] = []
+    for flags in _PAGE_FLAGS:
+        try:
+            r = subprocess.run(
+                [exe, key, *flags],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except OSError:
+            r = None
+        if r is not None:
+            output.append(r.stdout)
+    return "".join(output)
 
 
 def main() -> None:
