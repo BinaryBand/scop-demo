@@ -247,6 +247,68 @@ _TEMPLATE = """<!DOCTYPE html>
 
     .scop-cta-secondary:hover { background: rgba(187, 134, 252, 0.08); }
 
+    /* ── Form ──────────────────────────────────────────────── */
+
+    .scop-form {
+      background: #1e1e2e;
+      border-radius: 6px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .scop-field { display: flex; flex-direction: column; gap: 6px; }
+
+    .scop-field-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: rgba(255, 255, 255, 0.45);
+      text-transform: uppercase;
+    }
+
+    .scop-field-input {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: monospace;
+      color: rgba(255, 255, 255, 0.87);
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+
+    .scop-field-input:focus { border-color: #bb86fc; }
+
+    .scop-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .scop-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 12px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.7);
+      user-select: none;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .scop-chip input[type="checkbox"] { display: none; }
+
+    .scop-chip.checked {
+      background: rgba(187, 134, 252, 0.15);
+      border-color: rgba(187, 134, 252, 0.5);
+      color: #bb86fc;
+    }
+
     /* ── Fallback card ─────────────────────────────────────── */
 
     .event-card {
@@ -359,6 +421,61 @@ _TEMPLATE = """<!DOCTYPE html>
       return banner;
     }
 
+    function mkForm(item) {
+      const params = (item.params ?? []).filter(p =>
+        p && typeof p === 'object' && p.kind === 'flag' && p.metavar
+      );
+      if (!params.length) return null;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'scop-form';
+
+      params.forEach(p => {
+        const field = document.createElement('div');
+        field.className = 'scop-field';
+
+        const lbl = document.createElement('label');
+        lbl.className = 'scop-field-label';
+        lbl.textContent = p.name.replace(/^--/, '').replace(/-/g, ' ');
+        field.appendChild(lbl);
+
+        if (p.input_type === 'multi' && Array.isArray(p.options)) {
+          const selected = new Set((p.default ?? '').split(',').map(s => s.trim()).filter(Boolean));
+          const chips = document.createElement('div');
+          chips.className = 'scop-checkboxes';
+          p.options.forEach(opt => {
+            const chip = document.createElement('label');
+            chip.className = 'scop-chip' + (selected.has(opt) ? ' checked' : '');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = selected.has(opt);
+            cb.addEventListener('change', () => chip.classList.toggle('checked', cb.checked));
+            chip.appendChild(cb);
+            chip.appendChild(document.createTextNode(opt));
+            chips.appendChild(chip);
+          });
+          field.appendChild(chips);
+        } else {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'scop-field-input';
+          input.value = p.default ?? '';
+          input.placeholder = p.metavar ?? '';
+          field.appendChild(input);
+        }
+
+        wrap.appendChild(field);
+      });
+
+      const btn = document.createElement('button');
+      btn.className = 'scop-cta-btn scop-cta-primary mdc-ripple-surface';
+      btn.style.alignSelf = 'flex-start';
+      btn.textContent = 'Save';
+      wrap.appendChild(btn);
+
+      return wrap;
+    }
+
     // ── ────────────────────────────────────────────────────── */
 
     function mkTable(label, schema, rows) {
@@ -460,7 +577,8 @@ _TEMPLATE = """<!DOCTYPE html>
       }
 
       const nodes = [];
-      const ctaItems = [];   // action items from help lists → banner at top
+      const ctaItems  = [];   // 2+ non-flag tokens → CTA buttons at top
+      const formItems = [];   // 1 non-flag token + value params → form at bottom
       let scalars = [];
       let i = 0;
 
@@ -491,11 +609,22 @@ _TEMPLATE = """<!DOCTYPE html>
             items.push(evts[i].value);
             i++;
           }
-          // Action items (have a command field) go into the CTA banner.
-          // Plain items fall through to a regular list.
-          const actions = items.filter(x => x && typeof x === 'object' && x.command);
-          const plain   = items.filter(x => !(x && typeof x === 'object' && x.command));
-          ctaItems.push(...actions);
+          // Route each action item by command depth:
+          //   2+ non-flag tokens  → CTA button
+          //   1 non-flag token + value params → form
+          //   otherwise           → plain list
+          const plain = [];
+          items.forEach(x => {
+            if (!x || typeof x !== 'object' || !x.command) { plain.push(x); return; }
+            const tokens = x.command.trim().split(/\\s+/).filter(t => !t.startsWith('-'));
+            if (tokens.length >= 2) {
+              ctaItems.push(x);
+            } else if ((x.params ?? []).some(p => p && p.kind === 'flag' && p.metavar)) {
+              formItems.push(x);
+            } else {
+              plain.push(x);
+            }
+          });
           if (plain.length) nodes.push(mkList(plain));
 
         } else if (m === 'SCALAR_SET') {
@@ -514,9 +643,9 @@ _TEMPLATE = """<!DOCTYPE html>
 
       flushScalars();
 
-      // Prepend CTA banner (if any subcommands were found).
       const banner = mkCTAs(ctaItems);
-      return banner ? [banner, ...nodes] : nodes;
+      const forms  = formItems.map(mkForm).filter(Boolean);
+      return [...(banner ? [banner] : []), ...nodes, ...forms];
     }
 
     // ── Tab loading ───────────────────────────────────────────
