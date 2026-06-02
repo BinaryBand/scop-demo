@@ -204,6 +204,49 @@ _TEMPLATE = """<!DOCTYPE html>
     .scop-scalar-label { color: rgba(255, 255, 255, 0.5); }
     .scop-scalar-value { color: rgba(255, 255, 255, 0.87); font-weight: 500; }
 
+    /* ── CTA banner ────────────────────────────────────────── */
+
+    .scop-cta-banner {
+      background: #1e1e2e;
+      border-radius: 6px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .scop-cta-btn {
+      height: 36px;
+      padding: 0 20px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: Roboto, sans-serif;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.15s;
+    }
+
+    .scop-cta-primary {
+      background: #bb86fc;
+      border: none;
+      color: #000;
+    }
+
+    .scop-cta-primary:hover { background: #c9a2fd; }
+
+    .scop-cta-secondary {
+      background: transparent;
+      border: 1px solid rgba(187, 134, 252, 0.5);
+      color: #bb86fc;
+    }
+
+    .scop-cta-secondary:hover { background: rgba(187, 134, 252, 0.08); }
+
     /* ── Fallback card ─────────────────────────────────────── */
 
     .event-card {
@@ -292,7 +335,31 @@ _TEMPLATE = """<!DOCTYPE html>
       mdc.ripple.MDCRipple.attachTo(el);
     });
 
-    // ── Component builders ───────────────────────────────────
+    // ── Component builders ────────────────────────────────────
+
+    function mkCTAs(items) {
+      // Subcommands: command with 2+ non-flag tokens (e.g. "snapshot create").
+      // Flag-only variants like "snapshot --list" are excluded.
+      const subs = items.filter(item => {
+        if (!item || typeof item !== 'object' || !item.command) return false;
+        return item.command.trim().split(/\\s+/).filter(t => !t.startsWith('-')).length >= 2;
+      });
+      if (!subs.length) return null;
+      const banner = document.createElement('div');
+      banner.className = 'scop-cta-banner';
+      subs.forEach((item, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'scop-cta-btn mdc-ripple-surface ' +
+                        (idx === 0 ? 'scop-cta-primary' : 'scop-cta-secondary');
+        const tokens = item.command.trim().split(/\\s+/).filter(t => !t.startsWith('-'));
+        const word = tokens[tokens.length - 1].replace(/-/g, ' ');
+        btn.textContent = word.charAt(0).toUpperCase() + word.slice(1);
+        banner.appendChild(btn);
+      });
+      return banner;
+    }
+
+    // ── ────────────────────────────────────────────────────── */
 
     function mkTable(label, schema, rows) {
       const wrap = document.createElement('div');
@@ -393,6 +460,7 @@ _TEMPLATE = """<!DOCTYPE html>
       }
 
       const nodes = [];
+      const ctaItems = [];   // action items from help lists → banner at top
       let scalars = [];
       let i = 0;
 
@@ -423,7 +491,12 @@ _TEMPLATE = """<!DOCTYPE html>
             items.push(evts[i].value);
             i++;
           }
-          nodes.push(mkList(items));
+          // Action items (have a command field) go into the CTA banner.
+          // Plain items fall through to a regular list.
+          const actions = items.filter(x => x && typeof x === 'object' && x.command);
+          const plain   = items.filter(x => !(x && typeof x === 'object' && x.command));
+          ctaItems.push(...actions);
+          if (plain.length) nodes.push(mkList(plain));
 
         } else if (m === 'SCALAR_SET') {
           scalars.push(ev);
@@ -440,7 +513,10 @@ _TEMPLATE = """<!DOCTYPE html>
       }
 
       flushScalars();
-      return nodes;
+
+      // Prepend CTA banner (if any subcommands were found).
+      const banner = mkCTAs(ctaItems);
+      return banner ? [banner, ...nodes] : nodes;
     }
 
     // ── Tab loading ───────────────────────────────────────────
