@@ -94,6 +94,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     config = sub.add_parser("config", add_help=False, help="Application configuration")
     config.add_argument("--help", "-h", action="store_true", help="Show config commands")
+    config.add_argument("--status", action="store_true", help="Show config as key-value scalars")
+    config.add_argument("--list", "-l", action="store_true", help="Show config as a table")
     _add_mode_flags(config)
 
     config_sub = config.add_subparsers(dest="config_action")

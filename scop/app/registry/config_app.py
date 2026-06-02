@@ -8,6 +8,7 @@ from scop.models.protocol import MSGID, SyslogMessage
 from scop.ports.streaming_result import StreamingResult
 from scop.services.config_set_service import ConfigSetService
 from scop.services.config_show_service import ConfigShowService
+from scop.services.config_status_service import ConfigStatusService
 
 _HELP_ITEMS = [
     {
@@ -49,7 +50,11 @@ class ConfigApp(BaseApp):
                 msgid=MSGID.PAGE_BEGIN,
                 room=room,
                 msg="=== Config ===",
-                data={"title": "Config", "subtitle": "Application configuration"},
+                data={
+                    "title": "Config",
+                    "subtitle": "Application configuration",
+                    "icon": ":gear:",
+                },
             )
         )
 
@@ -59,7 +64,7 @@ class ConfigApp(BaseApp):
             self._emit_help(stream, room)
         elif action == "get":
             key = args.get("key")
-            service: ConfigShowService | ConfigSetService = ConfigShowService(
+            service: ConfigShowService | ConfigSetService | ConfigStatusService = ConfigShowService(
                 port=port, room=room, key=str(key) if key else None
             )
             await service.run(stream)
@@ -84,8 +89,15 @@ class ConfigApp(BaseApp):
                 return
             service = ConfigSetService(port=port, room=room, key=str(raw_key), value=str(raw_val))
             await service.run(stream)
-        else:
+        elif args.get("status"):
+            service = ConfigStatusService(port=port, room=room)
+            await service.run(stream)
+        elif args.get("list"):
             service = ConfigShowService(port=port, room=room)
+            await service.run(stream)
+        else:
+            # Default: show scalars so plain `scop config` is still informative.
+            service = ConfigStatusService(port=port, room=room)
             await service.run(stream)
 
         end = SyslogMessage(pri=6, msgid=MSGID.PAGE_END, room=room, msg="")

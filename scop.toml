@@ -36,6 +36,24 @@ id = "config"
 title = "Config"
 subtitle = "Application configuration"
 
+[[room.stat]]
+id = "snapshot.store_dir"
+label = "Snapshot store"
+type = "string"
+
+[[room.stat]]
+id = "snapshot.objects_dir"
+label = "Object store"
+type = "string"
+
+[[room.stat]]
+id = "snapshot.skip_dirs"
+label = "Skipped dirs"
+type = "string"
+
+[room.list]
+schema = ["key", "value"]
+
 [[room.command]]
 name = "Get"
 exec = "config get"
