@@ -150,6 +150,7 @@ name = "dest"
 kind = "positional"
 type = "string"
 metavar = "OUTPUT_DIR"
+required = false
 
 [[room.command.param]]
 name = "--quiet"
