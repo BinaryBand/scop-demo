@@ -120,7 +120,8 @@ DISPLAY_HINT_ERROR_BY_MSGID: dict[str, str] = {
 
 
 class HelpParam(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    # extra="allow": §8.1 says "Producers MAY extend with additional fields"
+    model_config = ConfigDict(extra="allow", strict=True)
 
     name: Text
     kind: PARAM_KIND
@@ -133,7 +134,8 @@ class HelpParam(BaseModel):
 
 
 class HelpItem(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    # extra="allow": §8.1 says "Producers MAY extend with additional fields"
+    model_config = ConfigDict(extra="allow", strict=True)
 
     command: Text
     description: Text

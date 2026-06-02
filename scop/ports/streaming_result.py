@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import AsyncIterator
+from typing import ClassVar
 
 from scop.bases import Port
+from scop.models.ndjson import NDJSONEvent
 from scop.models.protocol import ResolvedResult, SyslogMessage
 from scop.ports.stream_port import StreamPort
 
@@ -28,11 +30,19 @@ class _RuntimeStreamOps(Port):
 class StreamingResult(StreamPort, Port):
     """Async event channel created by AppDispatcher and passed down to services."""
 
+    _validate: ClassVar[bool] = False
+
+    @classmethod
+    def configure(cls, *, validate: bool) -> None:
+        cls._validate = validate
+
     def __init__(self, runtime: _RuntimeStreamOps) -> None:
         self._runtime = runtime
         self._stream_id = runtime.new_stream()
 
     def emit(self, event: SyslogMessage) -> None:
+        if StreamingResult._validate:
+            NDJSONEvent.model_validate_json(event.to_ndjson())
         self._runtime.emit(self._stream_id, event)
 
     def resolve(self, ok: bool, data: SyslogMessage) -> None:

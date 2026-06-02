@@ -4,6 +4,7 @@ from scop.app.registry.builder import build_default_registry, build_default_runt
 from scop.bases import BaseApp
 from scop.ports.runtime_port import RuntimePort
 from scop.ports.stream_port import StreamPort
+from scop.ports.streaming_result import StreamingResult as _StreamingResult
 
 
 class AppDispatcher:
@@ -14,7 +15,8 @@ class AppDispatcher:
         self._runtime = runtime
 
     @classmethod
-    def default(cls) -> AppDispatcher:
+    def default(cls, *, validate: bool = False) -> AppDispatcher:
+        _StreamingResult.configure(validate=validate)
         return cls(build_default_registry(), build_default_runtime())
 
     def dispatch(self, command: str, args: dict) -> StreamPort:

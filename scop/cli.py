@@ -210,7 +210,7 @@ async def _main(argv: list[str] | None = None) -> int:
     output_path: str | None = args.pop("output", None)
     command = _resolve_command(args)
 
-    dispatcher = AppDispatcher.default()
+    dispatcher = AppDispatcher.default(validate=bool(os.getenv("SCOP_VALIDATE_NDJSON")))
     stream = dispatcher.dispatch(command, args)
 
     with contextlib.ExitStack() as stack:
