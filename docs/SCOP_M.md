@@ -23,7 +23,7 @@ Draft specification, published for review and comment. The key words "MUST", "MU
 
 SCOP defines how a CLI application emits structured output at runtime. SCOP-M defines how the same application declares its structure statically. The two are complementary:
 
-```text
+```proto
 scop.toml          ← static  (design time)   full structure declared
      ↕  semantically equivalent to
 --help/--status/--list per room ← discovery  same structure, live
@@ -102,12 +102,12 @@ The standalone form is used throughout this specification.
 
 REQUIRED. Appears exactly once.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | ✓ | Application name; used as the root room title |
-| `version` | string | ✓ | Semver string |
-| `description` | string | | Short description; used as the root room subtitle |
-| `scop_version` | string | | SCOP spec version this manifest targets (e.g. `"0.1.0"`) |
+| Key            | Type   | Required | Description                                              |
+| -------------- | ------ | -------- | -------------------------------------------------------- |
+| `name`         | string | ✓        | Application name; used as the root room title            |
+| `version`      | string | ✓        | Semver string                                            |
+| `description`  | string |          | Short description; used as the root room subtitle        |
+| `scop_version` | string |          | SCOP spec version this manifest targets (e.g. `"0.1.0"`) |
 
 ```toml
 [app]
@@ -154,12 +154,12 @@ required = false
 
 OPTIONAL array. Each entry defines one room. The root room has `id = ""`. Room `id` values MUST match the string produced by SCOP §6 room derivation — i.e. the subcommand tokens that invoke the room, joined by `"/"`.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | string | ✓ | Room path string matching SCOP §6 derivation. Use `""` for root |
-| `title` | string | ✓ | Maps to `PAGE_BEGIN.title` |
-| `subtitle` | string | | Maps to `PAGE_BEGIN.subtitle` |
-| `icon` | string | | GitHub gemoji code (`:name:`). Maps to `PAGE_BEGIN.icon` |
+| Key        | Type   | Required | Description                                                     |
+| ---------- | ------ | -------- | --------------------------------------------------------------- |
+| `id`       | string | ✓        | Room path string matching SCOP §6 derivation. Use `""` for root |
+| `title`    | string | ✓        | Maps to `PAGE_BEGIN.title`                                      |
+| `subtitle` | string |          | Maps to `PAGE_BEGIN.subtitle`                                   |
+| `icon`     | string |          | GitHub gemoji code (`:name:`). Maps to `PAGE_BEGIN.icon`        |
 
 ```toml
 [[room]]
@@ -181,12 +181,12 @@ icon     = ":camera_with_flash:"
 
 OPTIONAL array within a `[[room]]`. Declares the `SCALAR_SET` events emitted by `--status` for this room.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `id` | string | ✓ | Maps to `SCALAR_SET.id` |
-| `label` | string | ✓ | Maps to `SCALAR_SET.label` |
-| `type` | string | ✓ | One of the types defined in §5 |
-| `unit` | string | | Maps to `SCALAR_SET.unit` |
+| Key     | Type   | Required | Description                    |
+| ------- | ------ | -------- | ------------------------------ |
+| `id`    | string | ✓        | Maps to `SCALAR_SET.id`        |
+| `label` | string | ✓        | Maps to `SCALAR_SET.label`     |
+| `type`  | string | ✓        | One of the types defined in §5 |
+| `unit`  | string |          | Maps to `SCALAR_SET.unit`      |
 
 ```toml
 [[room]]
@@ -210,10 +210,10 @@ id = "snap"
 
 OPTIONAL table within a `[[room]]`. Declares the `TABLE_DECLARE.schema` emitted by `--list` for this room.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `schema` | string[] | ✓ | Ordered column names. Maps to `TABLE_DECLARE.schema` |
-| `display_hint` | string | | Advisory rendering hint: `"table"`, `"chart"`, `"cards"` |
+| Key            | Type     | Required | Description                                              |
+| -------------- | -------- | -------- | -------------------------------------------------------- |
+| `schema`       | string[] | ✓        | Ordered column names. Maps to `TABLE_DECLARE.schema`     |
+| `display_hint` | string   |          | Advisory rendering hint: `"table"`, `"chart"`, `"cards"` |
 
 ```toml
 [[room]]
@@ -232,13 +232,13 @@ OPTIONAL array within a `[[room]]`. Each entry declares one available command.
 
 The `name` field is the display label shown in the GUI. The `exec` field is the CLI token actually invoked. When `name` and `exec` differ — or when a display label contains spaces or mixed case — `exec` MUST be provided. This decouples the GUI label from the CLI invocation and prevents the room routing collision described in §3.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | ✓ | Display label shown in GUI and `--help` output |
-| `exec` | string | | CLI token to invoke. Defaults to `name` if omitted. MUST be provided when `name` differs from the CLI token |
-| `description` | string | ✓ | Maps to `LIST_APPEND.value.description` in `--help` output |
-| `kind` | string | | `"action"` (executes in the current room) or `"group"` (navigates to a subroom). Default: `"action"`. Maps to `LIST_APPEND.value.kind` in `--help` output |
-| `navigates` | string | | Room `id` this command navigates to after execution. MUST match SCOP §6 room derivation. Omit if the command stays in the current room |
+| Key           | Type   | Required | Description                                                                                                                                               |
+| ------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | string | ✓        | Display label shown in GUI and `--help` output                                                                                                            |
+| `exec`        | string |          | CLI token to invoke. Defaults to `name` if omitted. MUST be provided when `name` differs from the CLI token                                               |
+| `description` | string | ✓        | Maps to `LIST_APPEND.value.description` in `--help` output                                                                                                |
+| `kind`        | string |          | `"action"` (executes in the current room) or `"group"` (navigates to a subroom). Default: `"action"`. Maps to `LIST_APPEND.value.kind` in `--help` output |
+| `navigates`   | string |          | Room `id` this command navigates to after execution. MUST match SCOP §6 room derivation. Omit if the command stays in the current room                    |
 
 > **Routing rule:** `navigates` MUST equal the room `id` that SCOP will derive at runtime from the invocation. For `ourapp snap [args]`, SCOP derives room `"snap"`, so `navigates = "snap"`. Setting `navigates` to an undeclared room `id` is a conformance violation.
 
@@ -267,24 +267,24 @@ OPTIONAL array within a `[[room.command]]`. Each entry declares one typed input.
 
 The `kind` field MUST be provided. Inferring parameter kind from the presence of a leading hyphen is fragile and not supported — non-standard single-dash long flags and symbol-prefixed positionals cannot be inferred reliably.
 
-| Key | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | string | ✓ | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`) |
-| `kind` | string | ✓ | `"flag"` or `"positional"`. Determines CLI assembly syntax |
-| `type` | string | ✓ | One of the types defined in §5 |
-| `short` | string | | Single-character short flag (e.g. `"-p"`). Valid for `kind = "flag"` only |
-| `metavar` | string | | Placeholder shown in usage line (e.g. `"PATH"`, `"SNAPSHOT"`) |
-| `description` | string | | Human-readable description of this parameter |
-| `required` | boolean | | Default: `false` for `"flag"`, `true` for `"positional"` |
-| `repeatable` | boolean | | Whether the param may appear multiple times. Default: `false` |
-| `default` | any | | Default value; type must match `type` |
-| `pattern` | string | | Regex validation. Valid for `string` and `path` types |
-| `choices` | string[] | | Valid values. Required when `type = "choice"` |
-| `min` | number | | Minimum value. Valid for `number` type |
-| `max` | number | | Maximum value. Valid for `number` type |
-| `format` | string | | Format hint. Valid for `datetime` and `duration` types |
-| `min_length` | number | | Minimum length. Valid for `string` type |
-| `max_length` | number | | Maximum length. Valid for `string` type |
+| Key           | Type     | Required | Description                                                               |
+| ------------- | -------- | -------- | ------------------------------------------------------------------------- |
+| `name`        | string   | ✓        | Flag name (e.g. `"--path"`) or positional label (e.g. `"target"`)         |
+| `kind`        | string   | ✓        | `"flag"` or `"positional"`. Determines CLI assembly syntax                |
+| `type`        | string   | ✓        | One of the types defined in §5                                            |
+| `short`       | string   |          | Single-character short flag (e.g. `"-p"`). Valid for `kind = "flag"` only |
+| `metavar`     | string   |          | Placeholder shown in usage line (e.g. `"PATH"`, `"SNAPSHOT"`)             |
+| `description` | string   |          | Human-readable description of this parameter                              |
+| `required`    | boolean  |          | Default: `false` for `"flag"`, `true` for `"positional"`                  |
+| `repeatable`  | boolean  |          | Whether the param may appear multiple times. Default: `false`             |
+| `default`     | any      |          | Default value; type must match `type`                                     |
+| `pattern`     | string   |          | Regex validation. Valid for `string` and `path` types                     |
+| `choices`     | string[] |          | Valid values. Required when `type = "choice"`                             |
+| `min`         | number   |          | Minimum value. Valid for `number` type                                    |
+| `max`         | number   |          | Maximum value. Valid for `number` type                                    |
+| `format`      | string   |          | Format hint. Valid for `datetime` and `duration` types                    |
+| `min_length`  | number   |          | Minimum length. Valid for `string` type                                   |
+| `max_length`  | number   |          | Maximum length. Valid for `string` type                                   |
 
 ```toml
 [[room]]
@@ -331,16 +331,16 @@ The following types are built-in. Producers MUST use one of these values for `pa
 
 The **SCOP wire type** column shows the `SCALAR_SET.type` value emitted at runtime. Types that are manifest-level annotations over `string` (e.g. `path`, `datetime`, `choice`) are transmitted as `string` on the wire; the manifest type is metadata for input validation and GUI widget selection only.
 
-| Type | GUI widget hint | Validation fields | JSON serialization | SCOP wire type |
-| --- | --- | --- | --- | --- |
-| `string` | text input | `pattern`, `min_length`, `max_length` | JSON string | `string` |
-| `number` | numeric input | `min`, `max` | JSON number | `number` |
-| `boolean` | checkbox / toggle | — | JSON boolean | `boolean` |
-| `path` | file / dir picker | `pattern` | JSON string | `string` |
-| `datetime` | date-time picker | `format`, `min`, `max` | JSON string (ISO 8601) | `string` |
-| `duration` | duration input | `format` | JSON string (ISO 8601, e.g. `"PT1M30S"`) | `duration` |
-| `bytes` | file size display | — | JSON integer (absolute byte count) | `bytes` |
-| `choice` | select / dropdown | `choices` | JSON string; MUST be a member of `choices` | `string` |
+| Type       | GUI widget hint   | Validation fields                     | JSON serialization                         | SCOP wire type |
+| ---------- | ----------------- | ------------------------------------- | ------------------------------------------ | -------------- |
+| `string`   | text input        | `pattern`, `min_length`, `max_length` | JSON string                                | `string`       |
+| `number`   | numeric input     | `min`, `max`                          | JSON number                                | `number`       |
+| `boolean`  | checkbox / toggle | —                                     | JSON boolean                               | `boolean`      |
+| `path`     | file / dir picker | `pattern`                             | JSON string                                | `string`       |
+| `datetime` | date-time picker  | `format`, `min`, `max`                | JSON string (ISO 8601)                     | `string`       |
+| `duration` | duration input    | `format`                              | JSON string (ISO 8601, e.g. `"PT1M30S"`)   | `duration`     |
+| `bytes`    | file size display | —                                     | JSON integer (absolute byte count)         | `bytes`        |
+| `choice`   | select / dropdown | `choices`                             | JSON string; MUST be a member of `choices` | `string`       |
 
 ---
 
@@ -348,14 +348,14 @@ The **SCOP wire type** column shows the `SCALAR_SET.type` value emitted at runti
 
 A SCOP-M manifest MUST be semantically equivalent to the runtime discovery output. Specifically:
 
-| Manifest field | Runtime equivalent |
-| --- | --- |
-| `room.title`, `room.subtitle`, `room.icon` | `PAGE_BEGIN` fields for that room |
-| `room.stat.*` | `SCALAR_SET` events emitted by `ourapp [room] --status` |
-| `room.list.schema` | `TABLE_DECLARE.schema` emitted by `ourapp [room] --list` |
+| Manifest field                               | Runtime equivalent                                                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `room.title`, `room.subtitle`, `room.icon`   | `PAGE_BEGIN` fields for that room                                              |
+| `room.stat.*`                                | `SCALAR_SET` events emitted by `ourapp [room] --status`                        |
+| `room.list.schema`                           | `TABLE_DECLARE.schema` emitted by `ourapp [room] --list`                       |
 | `room.command.exec`, `.description`, `.kind` | `LIST_APPEND.value.command`, `.description`, `.kind` in `ourapp [room] --help` |
-| `room.command.param.*` | `LIST_APPEND.value.params` entries (SCOP §8.1 help-item schema) |
-| `app.global_param.*` | Inherited `params` entries on every command |
+| `room.command.param.*`                       | `LIST_APPEND.value.params` entries (SCOP §8.1 help-item schema)                |
+| `app.global_param.*`                         | Inherited `params` entries on every command                                    |
 
 A conformance test tool MAY verify equivalence by running the CLI and diffing its `--help` / `--status` / `--list` output against the manifest.
 

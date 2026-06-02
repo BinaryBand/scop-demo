@@ -22,11 +22,11 @@ ourapp --help             → room: null       (--help is a flag on the root roo
 
 **Rule:** `room = subcommand tokens joined by /`, ignoring all flag tokens.
 
-| Token type | Room effect |
-| --- | --- |
-| Subcommand (bare word) | appended to room path |
-| Flag (`--foo`, `-f`) | no effect on room |
-| Flag argument (`--output FILE`) | no effect on room |
+| Token type                      | Room effect           |
+| ------------------------------- | --------------------- |
+| Subcommand (bare word)          | appended to room path |
+| Flag (`--foo`, `-f`)            | no effect on room     |
+| Flag argument (`--output FILE`) | no effect on room     |
 
 ---
 
@@ -36,11 +36,11 @@ Over time a loose standard has evolved for the meanings of GNU command-line opti
 
 ### Query flags — produce data output, then exit
 
-| Flag | Short | MSGID contract | Room |
-| --- | --- | --- | --- |
-| `--help` | `-h` | `LIST_DECLARE` → `LIST_APPEND` ×n → `LIST_END` | current |
-| `--version` | | `SCALAR_SET` | null |
-| `--list` | `-l` | `TABLE_DECLARE` → `TABLE_ROW` ×n → `TABLE_END` **or** `LIST_DECLARE` → `LIST_APPEND` ×n → `LIST_END` (data-dependent) | current |
+| Flag        | Short | MSGID contract                                                                                                        | Room    |
+| ----------- | ----- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `--help`    | `-h`  | `LIST_DECLARE` → `LIST_APPEND` ×n → `LIST_END`                                                                        | current |
+| `--version` |       | `SCALAR_SET`                                                                                                          | null    |
+| `--list`    | `-l`  | `TABLE_DECLARE` → `TABLE_ROW` ×n → `TABLE_END` **or** `LIST_DECLARE` → `LIST_APPEND` ×n → `LIST_END` (data-dependent) | current |
 
 **`--help` contract:**
 Each `LIST_APPEND` item describes one available command or flag:
@@ -54,7 +54,15 @@ Each `LIST_APPEND` item describes one available command or flag:
 **`--version` contract:**
 
 ```json
-{"room": null, "msgid": "SCALAR_SET", "id": "version", "label": "version", "value": "1.0.0", "type": "string", "msg": "ourapp 1.0.0"}
+{
+  "room": null,
+  "msgid": "SCALAR_SET",
+  "id": "version",
+  "label": "version",
+  "value": "1.0.0",
+  "type": "string",
+  "msg": "ourapp 1.0.0"
+}
 ```
 
 **`--list` contract:**
@@ -66,11 +74,11 @@ Emits a `TABLE` when items have named fields, a `LIST` when items are scalar. Th
 
 Mode flags adjust which events are emitted. They never produce MSGIDs of their own — they act as a severity filter on the stream.
 
-| Flag | Short | Inverse | Effect on stream |
-| --- | --- | --- | --- |
-| `--quiet` | `-q` | `--no-quiet` | suppress `PROCESS_LOG` and `severity ≥ NOTICE` |
-| `--verbose` | `-v` | `--no-verbose` | include `DEBUG`-level `PROCESS_LOG` events |
-| `--all` | `-a` | | expand scope of `LIST` / `TABLE` output (no new MSGIDs) |
+| Flag        | Short | Inverse        | Effect on stream                                        |
+| ----------- | ----- | -------------- | ------------------------------------------------------- |
+| `--quiet`   | `-q`  | `--no-quiet`   | suppress `PROCESS_LOG` and `severity ≥ NOTICE`          |
+| `--verbose` | `-v`  | `--no-verbose` | include `DEBUG`-level `PROCESS_LOG` events              |
+| `--all`     | `-a`  |                | expand scope of `LIST` / `TABLE` output (no new MSGIDs) |
 
 `--quiet` and `--verbose` are mutually exclusive. `--verbose` wins if both are passed.
 
@@ -80,11 +88,11 @@ Mode flags adjust which events are emitted. They never produce MSGIDs of their o
 
 Modifier flags do not change which MSGIDs are emitted — they add fields to `PROCESS_*` events so renderers and consumers can distinguish dry runs, recursive operations, and forced writes.
 
-| Flag | Short | Inverse | Added field | Value |
-| --- | --- | --- | --- | --- |
-| `--dry-run` | `-n` | | `dry_run` | `true` |
+| Flag          | Short       | Inverse          | Added field | Value  |
+| ------------- | ----------- | ---------------- | ----------- | ------ |
+| `--dry-run`   | `-n`        |                  | `dry_run`   | `true` |
 | `--recursive` | `-r` / `-R` | `--no-recursive` | `recursive` | `true` |
-| `--force` | `-f` | `--no-force` | `force` | `true` |
+| `--force`     | `-f`        | `--no-force`     | `force`     | `true` |
 
 ```json
 {"msgid": "PROCESS_BEGIN", "id": "snap", "label": "Snapshotting", "dry_run": true, "msg": "Snapshotting (dry run)"}
@@ -95,9 +103,9 @@ Modifier flags do not change which MSGIDs are emitted — they add fields to `PR
 
 ### I/O flags — redirect output, no MSGID change
 
-| Flag | Short | Effect |
-| --- | --- | --- |
-| `--output` | `-o` | redirect data output to file — stream continues unchanged |
+| Flag       | Short | Effect                                                    |
+| ---------- | ----- | --------------------------------------------------------- |
+| `--output` | `-o`  | redirect data output to file — stream continues unchanged |
 
 ---
 
@@ -105,20 +113,20 @@ Modifier flags do not change which MSGIDs are emitted — they add fields to `PR
 
 Combined view — every CLI invocation maps to a predictable stream shape.
 
-| Invocation | Room | Stream shape |
-| --- | --- | --- |
-| `ourapp` | null | `SCALAR_SET` ×n (stats) + `LIST` (commands) |
-| `ourapp --help` | null | `LIST` (commands) |
-| `ourapp --version` | null | `SCALAR_SET` (version) |
-| `ourapp snapshot` | snapshot | `SCALAR_SET` ×n (snapshot stats) |
-| `ourapp snapshot --help` | snapshot | `LIST` (snapshot commands + flags) |
-| `ourapp snapshot --list` | snapshot | `TABLE` or `LIST` (snapshot records) |
-| `ourapp snapshot create` | snapshot | `PROCESS_*` lifecycle |
-| `ourapp snapshot diff` | snapshot | `TABLE` or `LIST` (diff records) |
-| `ourapp snapshot --list --all` | snapshot | `TABLE` or `LIST` (all records, expanded) |
-| `ourapp snapshot --list --quiet` | snapshot | `TABLE` or `LIST` (no `PROCESS_LOG`) |
-| `ourapp snapshot create --dry-run` | snapshot | `PROCESS_*` with `dry_run: true` |
-| `ourapp snapshot create --verbose` | snapshot | `PROCESS_*` with `DEBUG` log events |
+| Invocation                         | Room     | Stream shape                                |
+| ---------------------------------- | -------- | ------------------------------------------- |
+| `ourapp`                           | null     | `SCALAR_SET` ×n (stats) + `LIST` (commands) |
+| `ourapp --help`                    | null     | `LIST` (commands)                           |
+| `ourapp --version`                 | null     | `SCALAR_SET` (version)                      |
+| `ourapp snapshot`                  | snapshot | `SCALAR_SET` ×n (snapshot stats)            |
+| `ourapp snapshot --help`           | snapshot | `LIST` (snapshot commands + flags)          |
+| `ourapp snapshot --list`           | snapshot | `TABLE` or `LIST` (snapshot records)        |
+| `ourapp snapshot create`           | snapshot | `PROCESS_*` lifecycle                       |
+| `ourapp snapshot diff`             | snapshot | `TABLE` or `LIST` (diff records)            |
+| `ourapp snapshot --list --all`     | snapshot | `TABLE` or `LIST` (all records, expanded)   |
+| `ourapp snapshot --list --quiet`   | snapshot | `TABLE` or `LIST` (no `PROCESS_LOG`)        |
+| `ourapp snapshot create --dry-run` | snapshot | `PROCESS_*` with `dry_run: true`            |
+| `ourapp snapshot create --verbose` | snapshot | `PROCESS_*` with `DEBUG` log events         |
 
 ---
 
@@ -126,11 +134,11 @@ Combined view — every CLI invocation maps to a predictable stream shape.
 
 A GUI derives its navigation automatically from the room field — no `NAV_*` MSGID is needed.
 
-| Room | GUI page | Populated by |
-| --- | --- | --- |
-| `null` | Home screen | `SCALAR_SET` (stats) + `LIST` (commands) from `ourapp` |
-| `snapshot` | Snapshot page | `SCALAR_SET` + `TABLE`/`LIST` from `ourapp snapshot` |
-| `snapshot/diff` | Diff page | `TABLE`/`LIST` from `ourapp snapshot diff` |
+| Room            | GUI page      | Populated by                                           |
+| --------------- | ------------- | ------------------------------------------------------ |
+| `null`          | Home screen   | `SCALAR_SET` (stats) + `LIST` (commands) from `ourapp` |
+| `snapshot`      | Snapshot page | `SCALAR_SET` + `TABLE`/`LIST` from `ourapp snapshot`   |
+| `snapshot/diff` | Diff page     | `TABLE`/`LIST` from `ourapp snapshot diff`             |
 
 `--help` at any level re-emits the room's `LIST` of available commands. A GUI renders this as a context menu, command palette, or drawer — whichever fits. The CLI just prints it.
 
@@ -146,10 +154,10 @@ Every room in a scop-based app can be fully described using three flags: `--stat
 
 Every command response is wrapped in a `PAGE_BEGIN` / `PAGE_END` pair. This makes every NDJSON stream self-describing — the GUI always knows which room is active and what the page is called.
 
-| MSGID | STRUCTURED-DATA fields | CLI rendering |
-| --- | --- | --- |
-| `PAGE_BEGIN` | `room`, `title`, `subtitle` (optional), `icon` (optional) | prints title as a section header |
-| `PAGE_END` | `room` | prints nothing (structural marker only) |
+| MSGID        | STRUCTURED-DATA fields                                    | CLI rendering                           |
+| ------------ | --------------------------------------------------------- | --------------------------------------- |
+| `PAGE_BEGIN` | `room`, `title`, `subtitle` (optional), `icon` (optional) | prints title as a section header        |
+| `PAGE_END`   | `room`                                                    | prints nothing (structural marker only) |
 
 ```json
 {"msgid": "PAGE_BEGIN", "room": "snapshot", "title": "Snapshots", "subtitle": "Manage and compare snapshots", "icon": "📸", "msg": "=== Snapshots ==="}
@@ -166,11 +174,11 @@ Every command response is wrapped in a `PAGE_BEGIN` / `PAGE_END` pair. This make
 
 A GUI calls these three in sequence to build any page:
 
-| Flag | Emits | GUI slot |
-| --- | --- | --- |
-| `--status` | `PAGE_BEGIN` + `SCALAR_SET` ×n + `PAGE_END` | page chrome + stats area |
-| `--list` | `PAGE_BEGIN` + `TABLE` or `LIST` + `PAGE_END` | main content area |
-| `--help` | `PAGE_BEGIN` + `LIST` (commands + flags) + `PAGE_END` | actions area |
+| Flag       | Emits                                                 | GUI slot                 |
+| ---------- | ----------------------------------------------------- | ------------------------ |
+| `--status` | `PAGE_BEGIN` + `SCALAR_SET` ×n + `PAGE_END`           | page chrome + stats area |
+| `--list`   | `PAGE_BEGIN` + `TABLE` or `LIST` + `PAGE_END`         | main content area        |
+| `--help`   | `PAGE_BEGIN` + `LIST` (commands + flags) + `PAGE_END` | actions area             |
 
 No flag combination is required — each is independently useful. A page with only `--status` is a valid dashboard. A page with only `--help` is a valid command palette.
 
@@ -215,13 +223,13 @@ PAGE_BEGIN          ← page title, subtitle, icon
 
 Cookie-cutter snippets a developer may add to enrich the GUI without breaking the CLI.
 
-| Slot | How to fill it | GUI widget | CLI rendering |
-| --- | --- | --- | --- |
-| Page description | `SCALAR_SET` with `id="page.description"` | hero text / caption | printed as a line |
-| Diagram / chart | `TABLE` with `display_hint: "chart"` field | chart, graph, sparkline | printed as table |
-| Breadcrumb | derived from `room` path automatically | breadcrumb bar | not printed |
-| Badge / tag | `SCALAR_SET` with `type: "badge"` | coloured badge | printed inline |
-| Empty state | `SCALAR_SET` with `id="page.empty"` | empty state illustration | printed as a line |
+| Slot             | How to fill it                             | GUI widget               | CLI rendering     |
+| ---------------- | ------------------------------------------ | ------------------------ | ----------------- |
+| Page description | `SCALAR_SET` with `id="page.description"`  | hero text / caption      | printed as a line |
+| Diagram / chart  | `TABLE` with `display_hint: "chart"` field | chart, graph, sparkline  | printed as table  |
+| Breadcrumb       | derived from `room` path automatically     | breadcrumb bar           | not printed       |
+| Badge / tag      | `SCALAR_SET` with `type: "badge"`          | coloured badge           | printed inline    |
+| Empty state      | `SCALAR_SET` with `id="page.empty"`        | empty state illustration | printed as a line |
 
 `display_hint` is advisory — renderers may ignore it. The data is always valid without it.
 
@@ -233,16 +241,16 @@ A GUI renderer that receives an NDJSON stream needs exactly one rule:
 
 > **Route each event to its slot by MSGID family.**
 
-| MSGID family | Slot |
-| --- | --- |
-| `PAGE_BEGIN` | open page, set title / subtitle / icon |
-| `SCALAR_SET` | stats area |
-| `TABLE_*` | main content area (table) |
-| `LIST_*` | actions area if room is `--help`; content area otherwise |
-| `PROCESS_*` | activity indicator |
-| `PAGE_END` | close page |
-| RFC 5424 pri 0–3 | error modal |
-| RFC 5424 pri 4 | warning banner |
+| MSGID family     | Slot                                                     |
+| ---------------- | -------------------------------------------------------- |
+| `PAGE_BEGIN`     | open page, set title / subtitle / icon                   |
+| `SCALAR_SET`     | stats area                                               |
+| `TABLE_*`        | main content area (table)                                |
+| `LIST_*`         | actions area if room is `--help`; content area otherwise |
+| `PROCESS_*`      | activity indicator                                       |
+| `PAGE_END`       | close page                                               |
+| RFC 5424 pri 0–3 | error modal                                              |
+| RFC 5424 pri 4   | warning banner                                           |
 
 The renderer needs no knowledge of the app, its commands, or its data models. Any scop-based app that follows this contract is automatically GUI-translatable.
 

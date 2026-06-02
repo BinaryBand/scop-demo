@@ -27,9 +27,9 @@ SCOP defines a wire format, event vocabulary, room model, GNU flag contracts, an
 SCOP is a composition, not a replacement:
 
 | Layer         | Standard            | Role                    |
-| --- | --- | --- |
-| Input | POSIX.1 Ch.12 + GNU | flags, subcommands |
-| Envelope | RFC 5424 | event fields, severity  |
+| ------------- | ------------------- | ----------------------- |
+| Input         | POSIX.1 Ch.12 + GNU | flags, subcommands      |
+| Envelope      | RFC 5424            | event fields, severity  |
 | Serialisation | NDJSON              | wire format             |
 | Output        | SCOP                | vocabulary + page model |
 
@@ -261,7 +261,7 @@ Query flags produce data output and exit. Each response MUST be wrapped in `PAGE
 
 **`--help` / `-h`**
 
-```
+```proto
 PAGE_BEGIN (room: current, title: command name, intent: "query")
 LIST_DECLARE (id: "help", ordered: false)
 LIST_APPEND ×n (value: help-item object — see schema below)
@@ -327,7 +327,7 @@ PAGE_END
 
 **`--version`**
 
-```text
+```proto
 PAGE_BEGIN (room: null, title: app name)
 SCALAR_SET (id: "version", type: "string", value: semver)
 PAGE_END
@@ -335,7 +335,7 @@ PAGE_END
 
 **`--status`**
 
-```text
+```proto
 PAGE_BEGIN (room: current, title: context name)
 SCALAR_SET ×n
 PAGE_END
@@ -343,7 +343,7 @@ PAGE_END
 
 **`--list` / `-l`**
 
-```text
+```proto
 PAGE_BEGIN (room: current, title: context name)
 TABLE_DECLARE → TABLE_ROW ×n → TABLE_END   (items have named fields)
   OR
@@ -379,7 +379,7 @@ Modifier flags annotate `PROCESS_*` events with additional fields. No new MSGIDs
 
 A room that implements all three query flags can be fully described by those calls. A consumer that makes all three has everything needed to render a complete page without app-specific code.
 
-```text
+```proto
 ourapp [subcommand] --status   →  page chrome + stats
 ourapp [subcommand] --list     →  content
 ourapp [subcommand] --help     →  actions
@@ -426,7 +426,7 @@ Each call is independent. A page MAY be built from a subset.
 
 **CLI output** (msg fields only):
 
-```text
+```proto
 === Snapshots ===
 Tracked files: 1042
 Last snapshot: 2026-05-30T14:32:00Z
