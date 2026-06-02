@@ -187,14 +187,44 @@ class ScopTuiApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._prime_root_pages()
-        self._refresh_nav_menu()
+        self.run_worker(self._init_worker, thread=True)
         if self._src is not None:
             self.run_worker(self._read_stream, thread=True)
-        elif self._page_order:
-            self._navigate(self._page_order[0])
 
     # ── Stream ────────────────────────────────────────────────────────────────
+
+    def _init_worker(self) -> None:
+        """Background: run scop --help, update nav, navigate to first page if standalone."""
+        exe = shutil.which("scop") or "scop"
+        items: list[tuple[str, Any]] = []
+        try:
+            result = subprocess.run(
+                [exe, "--help"], capture_output=True, text=True, encoding="utf-8", check=False
+            )
+        except OSError:
+            result = None
+        if result is not None:
+            for raw in io.StringIO(result.stdout):
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    ev: dict[str, Any] = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if ev.get("msgid") == "LIST_APPEND" and ev.get("id") == "help":
+                    items.append((str(ev.get("item_id", "")), ev.get("value", "")))
+
+        standalone = self._src is None
+
+        def _apply() -> None:
+            if items:
+                self._ingest_help_items(items)
+                self._refresh_nav_menu()
+            if standalone and self._page_order:
+                self._navigate(self._page_order[0])
+
+        self.call_from_thread(_apply)
 
     def _read_stream(self) -> None:
         if self._src is None:
@@ -209,28 +239,6 @@ class ScopTuiApp(App[None]):
         result = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
         for raw in io.StringIO(result.stdout):
             self._process_line(raw)
-
-    def _prime_root_pages(self) -> None:
-        exe = shutil.which("scop") or "scop"
-        try:
-            result = subprocess.run(
-                [exe, "--help"], capture_output=True, text=True, encoding="utf-8", check=False
-            )
-        except OSError:
-            return
-        items: list[tuple[str, Any]] = []
-        for raw in io.StringIO(result.stdout):
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                ev: dict[str, Any] = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if ev.get("msgid") == "LIST_APPEND" and ev.get("id") == "help":
-                items.append((str(ev.get("item_id", "")), ev.get("value", "")))
-        if items:
-            self._ingest_help_items(items)
 
     # ── Pages ─────────────────────────────────────────────────────────────────
 
