@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import functools
-import io
 import json
-import shlex
-import shutil
-import subprocess
 from dataclasses import dataclass
 from typing import Any
 
 from flask import Flask, render_template_string, request
+
+from scop.ui import PAGE_FLAGS, discover_pages, run_scop
 
 _app = Flask(__name__)
 
@@ -18,64 +15,16 @@ _ICONS: dict[str, str] = {
     "config": "settings",
 }
 
-# Commands run per root page (mirrors tui.py composite query_flags for depth-0 pages).
-_PAGE_FLAGS: list[list[str]] = [["--list", "--all"], ["--status"], ["--help"]]
-
 
 @dataclass
-class _NavPage:
+class _GuiPage:
     key: str
     label: str
     icon: str
 
 
-@functools.lru_cache(maxsize=1)
-def _nav_pages() -> list[_NavPage]:
-    """Discover root-level pages by parsing `scop --help` NDJSON output."""
-    exe = shutil.which("scop") or "scop"
-    try:
-        result = subprocess.run(
-            [exe, "--help"], capture_output=True, text=True, encoding="utf-8", check=False
-        )
-    except OSError:
-        return []
-
-    seen: set[str] = set()
-    pages: list[_NavPage] = []
-
-    for raw in io.StringIO(result.stdout):
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            ev: dict[str, Any] = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("msgid") != "LIST_APPEND" or ev.get("id") != "help":
-            continue
-        value = ev.get("value")
-        if not isinstance(value, dict):
-            continue
-        command = value.get("command", "")
-        if not isinstance(command, str):
-            continue
-        try:
-            tokens = [t for t in shlex.split(command, posix=False) if not t.startswith("-")]
-        except ValueError:
-            continue
-        if len(tokens) != 1 or tokens[0] in seen:
-            continue
-        key = tokens[0]
-        seen.add(key)
-        pages.append(
-            _NavPage(
-                key=key,
-                label=key.replace("-", " ").title(),
-                icon=_ICONS.get(key, "circle"),
-            )
-        )
-
-    return pages
+def _nav_pages() -> list[_GuiPage]:
+    return [_GuiPage(p.key, p.label, _ICONS.get(p.key, "circle")) for p in discover_pages()]
 
 
 _TEMPLATE = """<!DOCTYPE html>
@@ -988,59 +937,24 @@ def index() -> str:
 
 @_app.route("/api/page/<key>")
 def page_data(key: str) -> str:
-    exe = shutil.which("scop") or "scop"
-    output: list[str] = []
-    for flags in _PAGE_FLAGS:
-        try:
-            r = subprocess.run(
-                [exe, key, *flags], capture_output=True, text=True, encoding="utf-8", check=False
-            )
-        except OSError:
-            r = None
-        if r is not None:
-            output.append(r.stdout)
-    return "".join(output)
+    return "".join(run_scop([key, *flags]) for flags in PAGE_FLAGS)
 
 
 @_app.route("/api/subpage/<path:cmd>")
 def subpage_data(cmd: str) -> str:
     parts = [p for p in cmd.split("/") if p]
-    if not parts:
-        return ""
-    exe = shutil.which("scop") or "scop"
-    try:
-        r = subprocess.run(
-            [exe, *parts, "--help"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
-    except OSError:
-        r = None
-    return r.stdout if r is not None else ""
+    return run_scop([*parts, "--help"]) if parts else ""
 
 
 @_app.route("/api/run", methods=["POST"])
 def run_command() -> str:
-    body = request.get_json(silent=True) or {}
+    body: dict[str, Any] = request.get_json(silent=True) or {}
     args: list[str] = body.get("args", [])
     if not isinstance(args, list) or not args:
         return json.dumps({"ok": False, "output": ""})
-    exe = shutil.which("scop") or "scop"
-    try:
-        r = subprocess.run(
-            [exe, *[str(a) for a in args]],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
-    except OSError:
-        r = None
-    if r is None:
-        return json.dumps({"ok": False, "output": ""})
-    return json.dumps({"ok": r.returncode == 0, "output": r.stdout})
+    output = run_scop([str(a) for a in args])
+    ok = bool(output)
+    return json.dumps({"ok": ok, "output": output})
 
 
 def main() -> None:

@@ -18,7 +18,7 @@ constraints:
     all:
       - regex: "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
       - not:
-          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
+          regex: "^(?:__future__|abc|argparse|base64|bz2|collections|concurrent|contextlib|csv|dataclasses|datetime|difflib|enum|fnmatch|functools|glob|gzip|hashlib|hmac|http|io|itertools|json|lzma|os|pathlib|platform|queue|re|secrets|shlex|shutil|socket|stat|subprocess|sys|tarfile|tempfile|textwrap|threading|time|tomllib|typing|typing_extensions|unicodedata|urllib|zipfile|zoneinfo|scop)(?:\\..*)?$"
 files:
   - "scop/**/*.py"
   - "tests/**/*.py"

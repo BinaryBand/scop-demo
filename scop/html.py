@@ -1,105 +1,18 @@
 from __future__ import annotations
 
-import contextlib
-import functools
-import io
-import json
-import shlex
-import shutil
-import subprocess
-from dataclasses import dataclass
 from html import escape
 from typing import Any, cast
 
 from flask import Flask, render_template_string, request
 
+from scop.ui import PAGE_FLAGS, discover_pages, is_form_param, parse_ndjson, run_scop
+
 _app = Flask(__name__)
-
-_PAGE_FLAGS: list[list[str]] = [["--list", "--all"], ["--status"], ["--help"]]
-
-
-@dataclass
-class _NavPage:
-    key: str
-    label: str
-
-
-@functools.lru_cache(maxsize=1)
-def _nav_pages() -> list[_NavPage]:
-    exe = shutil.which("scop") or "scop"
-    try:
-        result = subprocess.run(
-            [exe, "--help"], capture_output=True, text=True, encoding="utf-8", check=False
-        )
-    except OSError:
-        return []
-
-    seen: set[str] = set()
-    pages: list[_NavPage] = []
-    for raw in io.StringIO(result.stdout):
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            ev: dict[str, Any] = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("msgid") != "LIST_APPEND" or ev.get("id") != "help":
-            continue
-        value = ev.get("value")
-        if not isinstance(value, dict):
-            continue
-        command = value.get("command", "")
-        if not isinstance(command, str):
-            continue
-        try:
-            tokens = [t for t in shlex.split(command, posix=False) if not t.startswith("-")]
-        except ValueError:
-            continue
-        if len(tokens) != 1 or tokens[0] in seen:
-            continue
-        key = tokens[0]
-        seen.add(key)
-        pages.append(_NavPage(key=key, label=key.replace("-", " ").title()))
-
-    return pages
-
-
-def _run_scop(args: list[str]) -> str:
-    exe = shutil.which("scop") or "scop"
-    try:
-        r = subprocess.run(
-            [exe, *args], capture_output=True, text=True, encoding="utf-8", check=False
-        )
-    except OSError:
-        r = None
-    return r.stdout if r is not None else ""
-
-
-def _parse(ndjson: str) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for raw in io.StringIO(ndjson):
-        line = raw.strip()
-        if not line:
-            continue
-        with contextlib.suppress(json.JSONDecodeError):
-            events.append(json.loads(line))
-    return events
-
-
-def _is_form_param(p: object) -> bool:
-    if not isinstance(p, dict):
-        return False
-    d = cast("dict[str, Any]", p)
-    return bool(
-        (d.get("kind") == "positional" and d.get("required") is not False)
-        or (d.get("kind") == "flag" and d.get("metavar") and (d.get("required") or "default" in d))
-    )
 
 
 def _build_form(item: dict[str, Any], tab: str) -> str:
     cmd = item.get("command", "")
-    params = [p for p in (item.get("params") or []) if _is_form_param(p)]
+    params = [p for p in (item.get("params") or []) if is_form_param(p)]
     tokens = [t for t in cmd.split() if not t.startswith("-")]
     btn = escape(tokens[-1].replace("-", " ").title() if tokens else "Submit")
     positionals = ",".join(p["name"] for p in params if p.get("kind") == "positional")
@@ -214,13 +127,13 @@ def _to_html(events: list[dict[str, Any]], *, tab: str, is_subpage: bool = False
                 if not isinstance(item, dict) or not item.get("command"):
                     continue
                 cmd_tokens = [t for t in item["command"].split() if not t.startswith("-")]
-                has_form = any(_is_form_param(p) for p in (item.get("params") or []))
+                has_form = any(is_form_param(p) for p in (item.get("params") or []))
                 if is_subpage:
-                    form_items.append(item)
+                    form_items.append(cast("dict[str, Any]", item))
                 elif len(cmd_tokens) >= 2:
-                    cta_items.append(item)
+                    cta_items.append(cast("dict[str, Any]", item))
                 elif has_form:
-                    form_items.append(item)
+                    form_items.append(cast("dict[str, Any]", item))
 
         elif m == "SCALAR_SET":
             scalars.append(ev)
@@ -279,17 +192,18 @@ _TEMPLATE = """<!DOCTYPE html>
 
 @_app.route("/")
 def index() -> str:
-    pages = _nav_pages()
+    pages = discover_pages()
     tab = request.args.get("tab") or (pages[0].key if pages else "")
     sub = request.args.get("sub", "")
 
     if sub:
-        ndjson = _run_scop([*sub.split(), "--help"])
-        content = _to_html(_parse(ndjson), tab=tab, is_subpage=True)
+        content = _to_html(
+            parse_ndjson(run_scop([*sub.split(), "--help"])), tab=tab, is_subpage=True
+        )
         back_url = f"/?tab={escape(tab)}"
     else:
-        ndjson = "".join(_run_scop([tab, *flags]) for flags in _PAGE_FLAGS)
-        content = _to_html(_parse(ndjson), tab=tab)
+        ndjson = "".join(run_scop([tab, *flags]) for flags in PAGE_FLAGS)
+        content = _to_html(parse_ndjson(ndjson), tab=tab)
         back_url = ""
 
     return render_template_string(
@@ -324,9 +238,9 @@ def run() -> str:
             if val:
                 args.extend([key, val])
 
-    ndjson = _run_scop(args)
-    content = _to_html(_parse(ndjson), tab=tab) if ndjson.strip() else "<p>Done.</p>"
-    pages = _nav_pages()
+    ndjson = run_scop(args)
+    content = _to_html(parse_ndjson(ndjson), tab=tab) if ndjson.strip() else "<p>Done.</p>"
+    pages = discover_pages()
     return render_template_string(
         _TEMPLATE, pages=pages, tab=tab, content=content, back_url=f"/?tab={escape(tab)}"
     )
