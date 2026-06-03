@@ -342,7 +342,6 @@ constraints:
   RAW:
     kind: string
 ignores:
-  - "scop/tui.py"
   - "scop/gui.py"
 ---
 # Rule 10: utils/ subdirectory allowlist

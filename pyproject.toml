@@ -7,8 +7,6 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "rich (>=15.0.0,<16.0.0)",
-    "textual (>=3.0) ; python_version >= \"3.11\" and python_version < \"4.0\"",
     "flask (>=3.0,<4.0)",
     "pydantic (>=2.8,<3.0)",
     "tqdm (>=4.0)",
@@ -16,7 +14,6 @@ dependencies = [
 
 [project.scripts]
 scop = "scop.cli:main"
-scop-tui = "scop.tui:main"
 scop-gui = "scop.gui:main"
 scop-html = "scop.html:main"
 scop-mui = "scop.mui:main"
@@ -77,8 +74,8 @@ select = [
 "tomli".msg = "TOML parsing belongs in utils/fmt only"
 "cryptography".msg = "Encryption belongs in utils/crypto only"
 "pydantic".msg = "Pydantic models belong in models/ only"
-"rich".msg = "TUI rendering belongs in tui.py only"
-"textual".msg = "TUI rendering belongs in tui.py only"
+"rich".msg = "rich is not used in this project"
+"textual".msg = "textual is not used in this project"
 "tqdm".msg = "CLI progress rendering belongs in cli.py only"
 
 [tool.ruff.lint.pydocstyle]
@@ -98,7 +95,6 @@ convention = "google"
 "scop/utils/crypto.py" = ["TID251"]
 "scop/utils/crypto/**/*.py" = ["TID251"]
 "scop/models/**/*.py" = ["TID251"]
-"scop/tui.py" = ["TID251", "S404", "S603", "S602"]
 "scop/cli.py" = ["TID251"]
 "scop/bases.py" = [
     "B024",
