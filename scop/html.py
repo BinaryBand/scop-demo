@@ -18,7 +18,8 @@ def _build_form(item: dict[str, Any], tab: str) -> str:
     positionals = ",".join(p["name"] for p in params if p.get("kind") == "positional")
 
     parts = [
-        '<form method="post" action="/run">',
+        '<div class="mdc-card">',
+        '<form class="scop-form" method="post" action="/run">',
         f'<input type="hidden" name="__cmd" value="{escape(cmd)}">',
         f'<input type="hidden" name="__tab" value="{escape(tab)}">',
         f'<input type="hidden" name="__pos" value="{escape(positionals)}">',
@@ -38,27 +39,43 @@ def _build_form(item: dict[str, Any], tab: str) -> str:
             selected = {s.strip() for s in default.split(",") if s.strip()}
             parts.append(f"<fieldset><legend>{lbl}{req_mark}</legend>")
             for opt in p["options"]:
-                checked = " checked" if opt in selected else ""
                 eo = escape(opt)
+                checked = " checked" if opt in selected else ""
                 parts.append(
-                    f'<label><input type="checkbox" name="multi:{escape(name)}"'
-                    f' value="{eo}"{checked}> {eo}</label> '
+                    f'<div class="mdc-form-field">'
+                    f'<div class="mdc-checkbox">'
+                    f'<input type="checkbox" class="mdc-checkbox__native-control"'
+                    f' name="multi:{escape(name)}" value="{eo}"{checked}>'
+                    f'<div class="mdc-checkbox__background">'
+                    f'<svg class="mdc-checkbox__checkmark" viewBox="0 0 24 24">'
+                    f'<path class="mdc-checkbox__checkmark-path" fill="none"'
+                    f' d="M1.73,12.91 8.1,19.28 22.79,4.59"/>'
+                    f'</svg><div class="mdc-checkbox__mixedmark"></div>'
+                    f'</div><div class="mdc-checkbox__ripple"></div>'
+                    f"</div><label>{eo}</label></div>"
                 )
             parts.append("</fieldset>")
-        elif kind == "positional":
-            parts.append(
-                f"<p><label>{lbl}{req_mark}<br>"
-                f'<input type="text" name="pos:{escape(name)}" value="{escape(default)}"'
-                f' placeholder="{escape(metavar)}"{req_attr}></label></p>'
-            )
         else:
+            field_name = f"pos:{escape(name)}" if kind == "positional" else escape(name)
             parts.append(
-                f"<p><label>{lbl}{req_mark}<br>"
-                f'<input type="text" name="{escape(name)}" value="{escape(default)}"'
-                f' placeholder="{escape(metavar)}"{req_attr}></label></p>'
+                f'<label class="mdc-text-field mdc-text-field--filled">'
+                f'<span class="mdc-text-field__ripple"></span>'
+                f'<span class="mdc-floating-label">{lbl}{req_mark}</span>'
+                f'<input class="mdc-text-field__input" type="text"'
+                f' name="{field_name}" value="{escape(default)}"'
+                f' placeholder="{escape(metavar)}"{req_attr}>'
+                f'<span class="mdc-line-ripple"></span>'
+                f"</label>"
             )
 
-    parts.append(f"<p><button type='submit'>{btn}</button></p></form>")
+    parts.extend([
+        (
+            f'<button type="submit" class="mdc-button mdc-button--raised">'
+            f'<span class="mdc-button__ripple"></span>'
+            f'<span class="mdc-button__label">{btn}</span></button>'
+        ),
+        "</form></div>",
+    ])
     return "\n".join(parts)
 
 
@@ -72,13 +89,19 @@ def _to_html(events: list[dict[str, Any]], *, tab: str, is_subpage: bool = False
     def flush_scalars() -> None:
         if not scalars:
             return
-        parts.append("<dl>")
+        parts.append('<div class="mdc-card"><ul class="mdc-list">')
         for ev in scalars:
             lbl = escape(str(ev.get("label") or ev.get("id", "")))
             val = str(ev.get("value", ""))
             unit = str(ev.get("unit", ""))
-            parts.append(f"<dt>{lbl}</dt><dd>{escape(val + (' ' + unit if unit else ''))}</dd>")
-        parts.append("</dl>")
+            display = escape(val + (" " + unit if unit else ""))
+            parts.append(
+                f'<li class="mdc-list-item">'
+                f'<span class="mdc-list-item__text">{lbl}</span>'
+                f'<span class="mdc-list-item__meta">{display}</span>'
+                f"</li>"
+            )
+        parts.append("</ul></div>")
         scalars.clear()
 
     while i < len(events):
@@ -98,17 +121,27 @@ def _to_html(events: list[dict[str, Any]], *, tab: str, is_subpage: bool = False
             ):
                 rows.append(events[i].get("values", {}))
                 i += 1
+            th_row = "".join(
+                f'<th class="mdc-data-table__header-cell">{escape(c.upper())}</th>' for c in schema
+            )
+            tr_rows = [
+                '<tr class="mdc-data-table__row">'
+                + "".join(
+                    f'<td class="mdc-data-table__cell">{escape(str(row.get(c, "")))}</td>'
+                    for c in schema
+                )
+                + "</tr>"
+                for row in rows
+            ]
             parts.extend([
-                "<table>",
-                "<thead><tr>" + "".join(f"<th>{escape(c)}</th>" for c in schema) + "</tr></thead>",
-                "<tbody>",
-                *[
-                    "<tr>"
-                    + "".join(f"<td>{escape(str(row.get(c, '')))}</td>" for c in schema)
-                    + "</tr>"
-                    for row in rows
-                ],
-                "</tbody></table>",
+                '<div class="mdc-data-table"><div class="mdc-data-table__table-container">',
+                (
+                    '<table class="mdc-data-table__table"><thead>'
+                    f'<tr class="mdc-data-table__header-row">{th_row}</tr></thead>'
+                ),
+                '<tbody class="mdc-data-table__content">',
+                *tr_rows,
+                "</tbody></table></div></div>",
             ])
 
         elif m == "LIST_DECLARE":
@@ -149,16 +182,23 @@ def _to_html(events: list[dict[str, Any]], *, tab: str, is_subpage: bool = False
     flush_scalars()
 
     if cta_items:
-        links = []
+        link_parts: list[str] = []
+        first = True
         for item in cta_items:
             cmd_tokens = [t for t in item["command"].split() if not t.startswith("-")]
             if len(cmd_tokens) < 2:
                 continue
             lbl = escape(cmd_tokens[-1].replace("-", " ").title())
             href = f"/?tab={escape(tab)}&sub={escape(item['command'])}"
-            links.append(f'<a href="{href}">[{lbl}]</a>')
-        if links:
-            parts.insert(0, "<p>" + " ".join(links) + "</p>")
+            cls = "mdc-button mdc-button--raised" if first else "mdc-button mdc-button--outlined"
+            first = False
+            link_parts.append(
+                f'<a class="{cls}" href="{href}">'
+                f'<span class="mdc-button__ripple"></span>'
+                f'<span class="mdc-button__label">{lbl}</span></a>'
+            )
+        if link_parts:
+            parts.insert(0, '<div class="mdc-card">' + "".join(link_parts) + "</div>")
 
     parts.extend(_build_form(item, tab) for item in form_items)
 

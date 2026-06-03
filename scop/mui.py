@@ -20,283 +20,59 @@ _TEMPLATE = """<!DOCTYPE html>
   <link rel="stylesheet"
         href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
   <style>
+    /* ── MDC dark theme variables ──────────────────────────── */
+    :root {
+      --mdc-theme-primary: #bb86fc;
+      --mdc-theme-on-primary: #000;
+      --mdc-theme-secondary: #03dac6;
+      --mdc-theme-background: #121212;
+      --mdc-theme-surface: #1e1e2e;
+      --mdc-theme-on-surface: rgba(255, 255, 255, 0.87);
+      --mdc-theme-error: #cf6679;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: Roboto, sans-serif; }
 
     body {
-      background: #121212;
-      color: #e0e0e0;
+      background: var(--mdc-theme-background);
+      color: var(--mdc-theme-on-surface);
+      font-family: Roboto, sans-serif;
       padding-top: 56px;
-      padding-bottom: 72px;
+      padding-bottom: 56px;
     }
 
-    /* ── Top app bar ───────────────────────────────────────── */
-
+    /* ── Shell: top app bar ────────────────────────────────── */
     .scop-app-bar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 56px;
-      background: #1e1e1e;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      display: flex;
-      align-items: center;
-      padding: 0 16px;
-      gap: 12px;
-      z-index: 10;
+      position: fixed; top: 0; left: 0; right: 0; height: 56px;
+      background: #1e1e1e; border-bottom: 1px solid rgba(255,255,255,0.12);
+      display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 10;
     }
-
-    .scop-app-bar-title {
-      font-size: 20px;
-      font-weight: 500;
-      letter-spacing: 0.0125em;
-      color: rgba(255,255,255,0.87);
-    }
-
+    .scop-app-bar-title { font-size: 20px; font-weight: 500; color: rgba(255,255,255,0.87); }
     .scop-back-btn {
-      display: flex;
-      align-items: center;
-      background: none;
-      border: none;
-      color: #bb86fc;
-      text-decoration: none;
-      padding: 6px 8px;
-      border-radius: 4px;
-      transition: background 0.15s;
+      display: flex; align-items: center; color: #bb86fc;
+      text-decoration: none; padding: 6px 8px; border-radius: 4px;
     }
-
     .scop-back-btn:hover { background: rgba(187,134,252,0.1); }
     .scop-back-btn .material-icons { font-size: 20px; }
 
-    /* ── Bottom nav ────────────────────────────────────────── */
-
+    /* ── Shell: bottom nav ─────────────────────────────────── */
     .scop-bottom-nav {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      height: 56px;
-      background: #1e1e1e;
-      border-top: 1px solid rgba(255,255,255,0.12);
-      display: flex;
-      z-index: 10;
+      position: fixed; bottom: 0; left: 0; right: 0; height: 56px;
+      background: #1e1e1e; border-top: 1px solid rgba(255,255,255,0.12);
+      display: flex; z-index: 10;
     }
-
     .scop-nav-tab {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-family: Roboto, sans-serif;
-      letter-spacing: 0.03em;
-      text-decoration: none;
-      color: rgba(255,255,255,0.5);
-      border-bottom: 2px solid transparent;
-      transition: color 0.15s, background 0.15s;
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; text-decoration: none; color: rgba(255,255,255,0.5);
+      border-bottom: 2px solid transparent; transition: color 0.15s;
     }
-
     .scop-nav-tab:hover { background: rgba(255,255,255,0.04); }
+    .scop-nav-tab[aria-current="page"] { color: #bb86fc; border-bottom-color: #bb86fc; }
 
-    .scop-nav-tab[aria-current="page"] {
-      color: #bb86fc;
-      border-bottom-color: #bb86fc;
-    }
-
-    /* ── Main content ──────────────────────────────────────── */
-
-    main {
-      padding: 20px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* ── Table ─────────────────────────────────────────────── */
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-      background: #1e1e2e;
-      border-radius: 6px;
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-    }
-
-    th {
-      text-align: left;
-      padding: 10px 16px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      color: rgba(255,255,255,0.5);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-
-    td {
-      padding: 10px 16px;
-      color: rgba(255,255,255,0.87);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(255,255,255,0.04); }
-
-    /* ── Scalars (dl/dt/dd) ────────────────────────────────── */
-
-    dl {
-      background: #1e1e2e;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-    }
-
-    dt {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 8px 16px 0;
-      font-size: 14px;
-      color: rgba(255,255,255,0.5);
-    }
-
-    dd {
-      padding: 0 16px 8px;
-      font-size: 14px;
-      font-weight: 500;
-      color: rgba(255,255,255,0.87);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-
-    dd:last-child { border-bottom: none; }
-
-    /* ── CTA links ─────────────────────────────────────────── */
-
-    p:has(> a) {
-      background: #1e1e2e;
-      border-radius: 6px;
-      padding: 12px 16px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
-    p > a {
-      display: inline-flex;
-      align-items: center;
-      height: 36px;
-      padding: 0 20px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      transition: background 0.15s;
-    }
-
-    p > a:first-of-type {
-      background: #bb86fc;
-      color: #000;
-    }
-
-    p > a:first-of-type:hover { background: #c9a2fd; }
-
-    p > a:not(:first-of-type) {
-      background: transparent;
-      border: 1px solid rgba(187,134,252,0.5);
-      color: #bb86fc;
-    }
-
-    p > a:not(:first-of-type):hover { background: rgba(187,134,252,0.08); }
-
-    /* ── Form ──────────────────────────────────────────────── */
-
-    form {
-      background: #1e1e2e;
-      border-radius: 6px;
-      padding: 16px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    form > p {
-      all: unset;
-      display: contents;
-    }
-
-    form label {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      color: rgba(255,255,255,0.45);
-      text-transform: uppercase;
-    }
-
-    input[type="text"] {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.18);
-      border-radius: 4px;
-      padding: 10px 12px;
-      font-size: 14px;
-      font-family: monospace;
-      color: rgba(255,255,255,0.87);
-      outline: none;
-      width: 100%;
-      transition: border-color 0.15s;
-    }
-
-    input[type="text"]:focus { border-color: #bb86fc; }
-
-    fieldset {
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 4px;
-      padding: 8px 12px;
-    }
-
-    legend {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      color: rgba(255,255,255,0.45);
-      text-transform: uppercase;
-      padding: 0 4px;
-    }
-
-    input[type="checkbox"] { accent-color: #bb86fc; }
-
-    fieldset label {
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 400;
-      letter-spacing: normal;
-      text-transform: none;
-      color: rgba(255,255,255,0.7);
-      margin-right: 12px;
-    }
-
-    button[type="submit"] {
-      height: 36px;
-      padding: 0 20px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 500;
-      font-family: Roboto, sans-serif;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      background: #bb86fc;
-      border: none;
-      color: #000;
-      align-self: flex-start;
-      transition: background 0.15s;
-    }
-
-    button[type="submit"]:hover { background: #c9a2fd; }
+    /* ── Content layout ────────────────────────────────────── */
+    main { padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .scop-form { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+    .mdc-text-field { width: 100%; }
   </style>
 </head>
 <body class="mdc-typography">
@@ -324,6 +100,17 @@ _TEMPLATE = """<!DOCTYPE html>
   </nav>
 
   <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+  <script>
+    document.querySelectorAll('.mdc-text-field').forEach(el => {
+      new mdc.textField.MDCTextField(el);
+    });
+    document.querySelectorAll('.mdc-data-table').forEach(el => {
+      new mdc.dataTable.MDCDataTable(el);
+    });
+    document.querySelectorAll('.mdc-checkbox').forEach(el => {
+      new mdc.checkbox.MDCCheckbox(el);
+    });
+  </script>
 </body>
 </html>
 """
