@@ -291,7 +291,7 @@ rule:
     - not:
         pattern: "from scop.app.dispatcher import AppDispatcher"
 files:
-  - "scop/cli.py"
+  - "scop/clig.py"
 ---
 # Rule 8: argparse and sys.exit only in cli.py
 id: no-argparse-outside-cli
@@ -343,7 +343,7 @@ constraints:
     kind: string
 ignores:
   - "scop/clig.py"
-  - "scop/cli.py"
+  - "scop/clig.py"
   - "scop/gui.py"
 ---
 # Rule 10: utils/ subdirectory allowlist

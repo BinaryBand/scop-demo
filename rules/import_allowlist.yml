@@ -26,7 +26,7 @@ ignores:
   - "scop/gui.py"
   - "scop/html.py"
   - "scop/mui.py"
-  - "scop/cli.py"
+  - "scop/clig.py"
   - "scop/adapters/**/*.py"
   - "scop/models/**/*.py"
   - "scop/utils/concurrent.py"

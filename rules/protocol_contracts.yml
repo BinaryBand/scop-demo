@@ -8,7 +8,7 @@ message: >
 rule:
   pattern: "print($$$ARGS)"
 files:
-  - "scop/cli.py"
+  - "scop/clig.py"
 ---
 # SCOP §6: room values are derived mechanically from command tokens.
 id: no-literal-room-in-syslogmessage
@@ -38,7 +38,7 @@ rule:
     - not:
         regex: "add_argument\\(\"--version\""
 files:
-  - "scop/cli.py"
+  - "scop/clig.py"
 ---
 # CLI contract: prefer canonical snapshot command namespace.
 id: cli-forbid-legacy-top-level-commands
@@ -54,4 +54,4 @@ rule:
     - pattern: 'sub.add_parser("log", $$$)'
     - pattern: 'sub.add_parser("restore", $$$)'
 files:
-  - "scop/cli.py"
+  - "scop/clig.py"

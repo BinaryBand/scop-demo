@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-scop = "scop.cli:main"
+scop = "scop.clig:main"
 scop-gui = "scop.gui:main"
 scop-html = "scop.html:main"
 scop-mui = "scop.mui:main"
@@ -76,7 +76,7 @@ select = [
 "pydantic".msg = "Pydantic models belong in models/ only"
 "rich".msg = "rich is not used in this project"
 "textual".msg = "textual is not used in this project"
-"tqdm".msg = "CLI progress rendering belongs in cli.py only"
+"tqdm".msg = "CLI progress rendering belongs in clig.py only"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -95,7 +95,7 @@ convention = "google"
 "scop/utils/crypto.py" = ["TID251"]
 "scop/utils/crypto/**/*.py" = ["TID251"]
 "scop/models/**/*.py" = ["TID251"]
-"scop/cli.py" = ["TID251"]
+"scop/clig.py" = ["TID251"]
 "scop/bases.py" = [
     "B024",
     "ANN001",
