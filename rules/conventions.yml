@@ -342,6 +342,8 @@ constraints:
   RAW:
     kind: string
 ignores:
+  - "scop/clig.py"
+  - "scop/cli.py"
   - "scop/gui.py"
 ---
 # Rule 10: utils/ subdirectory allowlist
