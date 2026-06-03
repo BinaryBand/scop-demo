@@ -19,6 +19,7 @@ scop = "scop.cli:main"
 scop-tui = "scop.tui:main"
 scop-gui = "scop.gui:main"
 scop-html = "scop.html:main"
+scop-mui = "scop.mui:main"
 
 
 [build-system]

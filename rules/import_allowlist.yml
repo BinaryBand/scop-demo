@@ -25,6 +25,7 @@ files:
 ignores:
   - "scop/gui.py"
   - "scop/html.py"
+  - "scop/mui.py"
   - "scop/cli.py"
   - "scop/tui.py"
   - "scop/adapters/**/*.py"
