@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request
 
 _app = Flask(__name__)
 
@@ -361,6 +361,83 @@ _TEMPLATE = """<!DOCTYPE html>
       color: #bb86fc;
     }
 
+    /* ── Run modal ─────────────────────────────────────────── */
+
+    #run-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .run-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(3px);
+    }
+
+    .run-modal-card {
+      position: relative;
+      background: #1e1e2e;
+      border-radius: 8px;
+      padding: 24px;
+      width: min(480px, 90vw);
+      max-height: 70vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .run-modal-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.87);
+    }
+
+    .run-progress {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .run-progress-bar {
+      height: 100%;
+      width: 40%;
+      background: #bb86fc;
+      border-radius: 2px;
+      animation: run-slide 1.3s ease-in-out infinite;
+    }
+
+    @keyframes run-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    .run-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .run-status-row .material-icons { font-size: 20px; }
+    .run-icon-ok  { color: #81c995; }
+    .run-icon-err { color: #cf6679; }
+
+    .run-modal-results {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .run-modal-footer { display: flex; justify-content: flex-end; }
+
     /* ── Fallback card ─────────────────────────────────────── */
 
     .event-card {
@@ -455,11 +532,68 @@ _TEMPLATE = """<!DOCTYPE html>
     {% endfor %}
   </nav>
 
+  <div id="run-modal">
+    <div class="run-modal-backdrop" id="run-modal-backdrop"></div>
+    <div class="run-modal-card">
+      <div class="run-modal-title" id="run-modal-title"></div>
+      <div id="run-modal-status"></div>
+      <div class="run-modal-results" id="run-modal-results" style="display:none"></div>
+      <div class="run-modal-footer" id="run-modal-footer" style="display:none">
+        <button class="scop-cta-btn scop-cta-secondary mdc-ripple-surface"
+                id="run-modal-dismiss">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
   <script>
     document.querySelectorAll('.mdc-ripple-surface').forEach(el => {
       mdc.ripple.MDCRipple.attachTo(el);
     });
+
+    // ── Run modal ─────────────────────────────────────────────
+
+    const _modal     = document.getElementById('run-modal');
+    const _modalTitle  = document.getElementById('run-modal-title');
+    const _modalStatus = document.getElementById('run-modal-status');
+    const _modalResults = document.getElementById('run-modal-results');
+    const _modalFooter  = document.getElementById('run-modal-footer');
+
+    function showRunModal(title) {
+      _modalTitle.textContent = title;
+      _modalStatus.innerHTML =
+        '<div class="run-progress"><div class="run-progress-bar"></div></div>';
+      _modalResults.style.display = 'none';
+      _modalResults.textContent = '';
+      _modalFooter.style.display = 'none';
+      _modal.style.display = 'flex';
+    }
+
+    function finishRunModal(nodes, ok) {
+      _modalStatus.innerHTML = '';
+      const row = document.createElement('div');
+      row.className = 'run-status-row';
+      const icon = document.createElement('i');
+      icon.className = 'material-icons ' + (ok ? 'run-icon-ok' : 'run-icon-err');
+      icon.textContent = ok ? 'check_circle' : 'error';
+      row.appendChild(icon);
+      row.appendChild(document.createTextNode(ok ? 'Done' : 'Failed'));
+      _modalStatus.appendChild(row);
+      if (nodes.length) {
+        nodes.forEach(n => _modalResults.appendChild(n));
+        _modalResults.style.display = 'flex';
+      }
+      _modalFooter.style.display = 'flex';
+      mdc.ripple.MDCRipple.attachTo(document.getElementById('run-modal-dismiss'));
+    }
+
+    function closeRunModal() {
+      _modal.style.display = 'none';
+      _modalResults.textContent = '';
+    }
+
+    document.getElementById('run-modal-dismiss').addEventListener('click', closeRunModal);
+    document.getElementById('run-modal-backdrop').addEventListener('click', closeRunModal);
 
     // ── Component builders ────────────────────────────────────
 
@@ -499,6 +633,9 @@ _TEMPLATE = """<!DOCTYPE html>
       const wrap = document.createElement('div');
       wrap.className = 'scop-form';
 
+      // Keep {p, el, isMulti} references in a closure so the submit handler can read them.
+      const bindings = [];
+
       params.forEach(p => {
         const isRequired = p.kind === 'positional'
           ? p.required !== false
@@ -529,6 +666,7 @@ _TEMPLATE = """<!DOCTYPE html>
             chips.appendChild(chip);
           });
           field.appendChild(chips);
+          bindings.push({p, el: chips, isMulti: true});
         } else {
           const input = document.createElement('input');
           input.type = 'text';
@@ -537,6 +675,7 @@ _TEMPLATE = """<!DOCTYPE html>
           input.placeholder = p.metavar ?? p.name;
           if (isRequired) input.required = true;
           field.appendChild(input);
+          bindings.push({p, el: input, isMulti: false});
         }
 
         wrap.appendChild(field);
@@ -551,8 +690,38 @@ _TEMPLATE = """<!DOCTYPE html>
       btn.className = 'scop-cta-btn scop-cta-primary mdc-ripple-surface';
       btn.style.alignSelf = 'flex-start';
       btn.textContent = btnLabel;
-      wrap.appendChild(btn);
 
+      btn.addEventListener('click', async () => {
+        const args = (item.command ?? '').trim().split(/\\s+/).filter(Boolean);
+        bindings.forEach(({p, el, isMulti}) => {
+          if (isMulti) {
+            const vals = [...el.querySelectorAll('input:checked')]
+                .map(cb => cb.parentElement.textContent.trim()).filter(Boolean);
+            if (vals.length) args.push(p.name, vals.join(','));
+          } else {
+            const val = el.value.trim();
+            if (val) {
+              if (p.kind === 'positional') args.push(val);
+              else args.push(p.name, val);
+            }
+          }
+        });
+
+        showRunModal(`Running scop ${args.join(' ')}…`);
+        try {
+          const res = await fetch('/api/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({args}),
+          });
+          const data = await res.json();
+          finishRunModal(data.output ? renderEvents(data.output) : [], data.ok);
+        } catch (e) {
+          finishRunModal([], false);
+        }
+      });
+
+      wrap.appendChild(btn);
       return wrap;
     }
 
@@ -850,6 +1019,28 @@ def subpage_data(cmd: str) -> str:
     except OSError:
         r = None
     return r.stdout if r is not None else ""
+
+
+@_app.route("/api/run", methods=["POST"])
+def run_command() -> str:
+    body = request.get_json(silent=True) or {}
+    args: list[str] = body.get("args", [])
+    if not isinstance(args, list) or not args:
+        return json.dumps({"ok": False, "output": ""})
+    exe = shutil.which("scop") or "scop"
+    try:
+        r = subprocess.run(
+            [exe, *[str(a) for a in args]],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        r = None
+    if r is None:
+        return json.dumps({"ok": False, "output": ""})
+    return json.dumps({"ok": r.returncode == 0, "output": r.stdout})
 
 
 def main() -> None:
