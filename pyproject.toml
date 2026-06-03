@@ -18,6 +18,7 @@ dependencies = [
 scop = "scop.cli:main"
 scop-tui = "scop.tui:main"
 scop-gui = "scop.gui:main"
+scop-html = "scop.html:main"
 
 
 [build-system]
@@ -104,6 +105,7 @@ convention = "google"
 ] # Marker bases — stream annotation pending (see docs/TODO Rule 6)
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
 "scop/gui.py" = ["S404", "S603"] # scop --help discovery — resolved via shutil.which, shell=False
+"scop/html.py" = ["S404", "S603"] # same — resolved via shutil.which, shell=False
 "scop/adapters/snapshot_adapter.py" = [
     "S404",
     "S603",
