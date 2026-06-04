@@ -23,6 +23,13 @@ _TEMPLATE_DIR = _ROOT / "static" / "templates"
 _STATIC_DIR = _ROOT / "static"
 _app = Flask(__name__, template_folder=str(_TEMPLATE_DIR), static_folder=str(_STATIC_DIR))
 
+# Minimal MUI resources so the GUI can opt-in to Material styles.
+MATERIAL_HEAD = (
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">'
+    "\n"
+    '<link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">'
+)
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,6 +131,7 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
         tables=tables,
         lists=lists,
         is_subpage=is_subpage,
+        extra_head=MATERIAL_HEAD,
     )
 
 
@@ -138,14 +146,19 @@ def index() -> str:
     sub = request.args.get("sub", "")
 
     if not current:
-        return render_template("base.html", title="No pages", message="No pages found.")
+        return render_template(
+            "base.html", title="No pages", message="No pages found.", extra_head=MATERIAL_HEAD
+        )
 
     page = _fetch_sub(current, sub) if sub else _fetch(current)
 
     if page is None:
         label = f"{current}/{sub}" if sub else current
         return render_template(
-            "base.html", title="No data", message=f"No data for {escape(label)}."
+            "base.html",
+            title="No data",
+            message=f"No data for {escape(label)}.",
+            extra_head=MATERIAL_HEAD,
         )
 
     return _render(page, pages, current, sub)
