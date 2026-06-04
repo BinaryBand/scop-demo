@@ -36,12 +36,18 @@
       </label>
 
     {% elif p.get('options') %}
-      <div class="mdc-select">
-        <select name="{{ name }}" id="{{ id }}" class="mdc-select__native-control">
+      {# Use MDC native select so we get the dropdown arrow and proper MUI behaviour #}
+      <div class="mdc-select mdc-select--filled">
+        <select name="{{ name }}" id="{{ id }}" class="mdc-select__native-control" {% if p.get('required') %}required{% endif %}>
+          {% if not p.get('required') %}
+            <option value="">-</option>
+          {% endif %}
           {% for opt in p.get('options') %}
             <option value="{{ opt }}" {% if opt == default %}selected{% endif %}>{{ opt }}</option>
           {% endfor %}
         </select>
+        <label class="mdc-floating-label" for="{{ id }}">{{ metavar }}</label>
+        <div class="mdc-line-ripple"></div>
       </div>
 
     {% else %}

@@ -20,5 +20,26 @@
     {% endif %}
 
     {% block content %}{% endblock %}
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    <script>
+      (function () {
+        if (typeof mdc === 'undefined') return;
+        try {
+          document.querySelectorAll('.mdc-select').forEach(function (el) {
+            mdc.select.MDCSelect.attachTo(el);
+          });
+        } catch (e) {
+          // fail silently if MDC isn't available
+          console.error(e);
+        }
+        try {
+          document.querySelectorAll('.mdc-text-field').forEach(function (el) {
+            mdc.textField.MDCTextField.attachTo(el);
+          });
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
   </body>
 </html>

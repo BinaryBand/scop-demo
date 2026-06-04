@@ -1,1 +1,41 @@
+/* Minimal overrides to make native MDC selects visually match filled text fields */
+.mdc-select.mdc-select--filled {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.mdc-select.mdc-select--filled .mdc-select__native-control {
+	-webkit-appearance: menulist-button;
+	-moz-appearance: menulist-button;
+	appearance: menulist-button;
+	padding: 10px 14px;
+	height: 40px;
+	line-height: 1.2;
+	background: #f5f5f5;
+	border-radius: 6px;
+	border: 1px solid rgba(0,0,0,0.06);
+	color: inherit;
+	font-size: 0.95rem;
+	box-sizing: border-box;
+}
+
+.mdc-text-field.mdc-text-field--filled .mdc-text-field__input {
+	padding: 10px 14px;
+	height: 40px;
+	box-sizing: border-box;
+}
+
+/* Slight spacing to align label / line ripple */
+.mdc-select.mdc-select--filled .mdc-floating-label,
+.mdc-text-field.mdc-text-field--filled .mdc-floating-label {
+	margin-left: 6px;
+}
+
+/* Small responsive width default to match neighbors */
+.mdc-select.mdc-select--filled,
+.mdc-text-field.mdc-text-field--filled {
+	min-width: 180px;
+	margin-right: 8px;
+}
+
 
