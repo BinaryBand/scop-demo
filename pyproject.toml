@@ -6,11 +6,7 @@ authors = [
     { name = "BinaryBand", email = "BinaryBand@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = [
-    "flask (>=3.0,<4.0)",
-    "pydantic (>=2.8,<3.0)",
-    "tqdm (>=4.0)",
-]
+dependencies = ["flask (>=3.0,<4.0)", "pydantic (>=2.8,<3.0)", "tqdm (>=4.0)"]
 
 [project.scripts]
 scop = "scop.clig:main"
@@ -85,6 +81,7 @@ convention = "google"
 "tests/**/*.py" = [
     "S101",
     "ARG",
+    "ANN",
 ] # Tests use `assert` idiomatically; unused-arg false-positives on fixtures
 "tests/conftest.py" = ["S101"] # conftest _fix() runs trusted dev tools
 # TID251 carve-outs — third-party allowed only in the one declared submodule
@@ -101,9 +98,18 @@ convention = "google"
     "ANN001",
 ] # Marker bases — stream annotation pending (see docs/TODO Rule 6)
 "scop/utils/proc.py" = ["S404", "S603"] # subprocess shim — shell never used
-"scop/ui.py" = ["S404", "S603"] # scop subprocess runner — resolved via shutil.which, shell=False
-"scop/gui.py" = ["S404", "S603"] # scop --help discovery — resolved via shutil.which, shell=False
-"scop/html.py" = ["S404", "S603"] # same — resolved via shutil.which, shell=False
+"scop/ui.py" = [
+    "S404",
+    "S603",
+] # scop subprocess runner — resolved via shutil.which, shell=False
+"scop/gui.py" = [
+    "S404",
+    "S603",
+] # scop --help discovery — resolved via shutil.which, shell=False
+"scop/html.py" = [
+    "S404",
+    "S603",
+] # same — resolved via shutil.which, shell=False
 "scop/adapters/snapshot_adapter.py" = [
     "S404",
     "S603",
