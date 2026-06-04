@@ -1,10 +1,11 @@
 <nav class="mdc-card">
   <p class="mdc-typography--subtitle1">
     {% for p in pages %}
+      {% set ic = (page_icons.get(p, '') if page_icons is defined else '') %}
       {% if p == current %}
-        <strong>[{{ p }}]</strong>
+        <strong>[{% if ic %}{{ ic }} {% endif %}{{ p }}]</strong>
       {% else %}
-        <a href="/?page={{ p }}">{{ p }}</a>
+        <a href="/?page={{ p }}">{% if ic %}{{ ic }} {% endif %}{{ p }}</a>
       {% endif %}
       {% if not loop.last %} | {% endif %}
     {% endfor %}

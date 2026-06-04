@@ -201,6 +201,23 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
                 if opts:
                     param["options"] = opts
 
+    # Build a mapping of page -> icon (if any) by probing each page's PAGE_BEGIN
+    page_icons: dict[str, str] = {}
+    for p in pages:
+        try:
+            evs, _ok = dispatch_events(p, {"help": True})
+        except Exception:
+            evs = []
+        icon_val = ""
+        for ev in evs:
+            if ev.get("msgid") == "PAGE_BEGIN":
+                data = ev.get("data") or {}
+                if isinstance(data, dict):
+                    icon_val = str(data.get("icon") or "")
+                if icon_val:
+                    break
+        page_icons[p] = icon_val
+
     return render_template(
         "base.html",
         pages=pages,
@@ -211,6 +228,7 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
         tables=tables,
         lists=lists,
         is_subpage=is_subpage,
+        page_icons=page_icons,
         extra_head=MATERIAL_HEAD,
     )
 
