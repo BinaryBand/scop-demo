@@ -1,0 +1,15 @@
+{# Tables partial: expects `tables` list in context #}
+{% for t in tables %}
+  <table border="1" cellpadding="4">
+    <tr>
+      {% for c in t.schema %}<th>{{ c }}</th>{% endfor %}
+    </tr>
+    {% for row in t.rows %}
+      <tr>
+        {% for c in t.schema %}
+          <td>{{ row.get(c, '') }}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </table>
+{% endfor %}

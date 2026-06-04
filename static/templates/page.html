@@ -4,25 +4,10 @@
   <h2>{{ page.title }}</h2>
 
   {# Scalars #}
-  {% for s in scalars %}
-    <p>{{ s.label }}: <b>{{ s.value }}</b>{% if s.unit %} {{ s.unit }}{% endif %}</p>
-  {% endfor %}
+  {% include 'partials/scalars.html' %}
 
   {# Tables #}
-  {% for t in tables %}
-    <table border="1" cellpadding="4">
-      <tr>
-        {% for c in t.schema %}<th>{{ c }}</th>{% endfor %}
-      </tr>
-      {% for row in t.rows %}
-        <tr>
-          {% for c in t.schema %}
-            <td>{{ row.get(c, '') }}</td>
-          {% endfor %}
-        </tr>
-      {% endfor %}
-    </table>
-  {% endfor %}
+  {% include 'partials/tables.html' %}
 
   {# Lists #}
   {% for lst in lists %}

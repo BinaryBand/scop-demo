@@ -1,0 +1,4 @@
+{# Scalars partial: expects `scalars` list in context #}
+{% for s in scalars %}
+  <p>{{ s.label }}: <b>{{ s.value }}</b>{% if s.unit %} {{ s.unit }}{% endif %}</p>
+{% endfor %}
