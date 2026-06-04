@@ -202,6 +202,7 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
                     param["options"] = opts
 
     # Build a mapping of page -> icon (if any) by probing each page's PAGE_BEGIN
+    # Accept both flattened events (top-level keys) and nested `data` dicts.
     page_icons: dict[str, str] = {}
     for p in pages:
         try:
@@ -211,9 +212,11 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
         icon_val = ""
         for ev in evs:
             if ev.get("msgid") == "PAGE_BEGIN":
-                data = ev.get("data") or {}
-                if isinstance(data, dict):
-                    icon_val = str(data.get("icon") or "")
+                data = ev.get("data")
+                if isinstance(data, dict) and data.get("icon"):
+                    icon_val = str(data.get("icon"))
+                elif ev.get("icon"):
+                    icon_val = str(ev.get("icon"))
                 if icon_val:
                     break
         page_icons[p] = icon_val
@@ -310,7 +313,7 @@ def run() -> WResponse | str:
 
 
 def main() -> None:
-    _app.run(host="127.0.0.1", port=5000)
+    _app.run(host="0.0.0.0", port=5000)
 
 
 if __name__ == "__main__":
