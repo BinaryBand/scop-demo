@@ -44,6 +44,24 @@ ignore_imports =
     scop.cli -> scop.app.dispatcher
 
 
+# clig.py — presentation layer; routes through cli.py, not scop.app directly.
+[importlinter:contract:clig]
+name = clig.py must not import scop.app directly
+type = forbidden
+source_modules =
+    scop.clig
+forbidden_modules =
+    scop.adapters
+    scop.services
+    scop.models
+    scop.ports
+    scop.utils
+    scop.app
+ignore_imports =
+    scop.clig -> scop.cli
+    scop.clig -> scop.ui
+
+
 # app/ — edge verbs: wires, types
 # app/ is the composition root — it may import services, adapters, and ports.
 # It may not import cli or utils.

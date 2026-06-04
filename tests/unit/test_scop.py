@@ -1,299 +1,242 @@
-"""Linear SCOP-event → PageView contract tests.
+"""Linear UIModel contract tests.
 
-Each test function walks a specific event sequence top-to-bottom, feeding
-NDJSON lines through parse_ndjson → build_page_view and asserting on the
-resulting PageView.  The ordering is intentional: simple cases first,
-composite cases last, so failures are easy to pinpoint.
-
-Protocol terms used:
-  open_page  = PAGE_BEGIN  (starts a blank slate)
-  close_page = PAGE_END    (ends the current page; data is finalised)
+Each function feeds SCOP events into UIModel.ingest and asserts on the
+resulting page slots.  No rendering decisions are tested here — those belong
+in clig.py.  The model only cares about: pages were created, scalars/lists/
+tables landed in the right slots.
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from scop.ui import (
-    ListSection,
-    PageView,
-    ScalarItem,
-    TableSection,
-    build_page_view,
-    parse_ndjson,
-)
+from scop.ui import UIModel, UIPage
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def e(**kwargs: Any) -> str:
-    """Serialise one NDJSON event line."""
-    return json.dumps({"pri": 6, **kwargs})
+def e(**kwargs: Any) -> dict[str, Any]:
+    """Build a single event dict."""
+    return {"pri": 6, **kwargs}
 
 
-def view(*lines: str, is_subpage: bool = False) -> PageView:
-    """Parse the given NDJSON lines and return a PageView."""
-    return build_page_view(parse_ndjson("\n".join(lines)), is_subpage=is_subpage)
+def feed(*events: dict[str, Any]) -> UIModel:
+    m = UIModel()
+    m.ingest_many(list(events))
+    return m
 
 
 # ── Page open / close ─────────────────────────────────────────────────────────
 
 
-def test_open_page_alone_is_blank_slate():
-    """PAGE_BEGIN with no events produces an entirely empty PageView."""
-    v = view(e(msgid="PAGE_BEGIN", id="p1"))
-    assert v.ctas == []
-    assert v.nodes == []
-    assert v.forms == []
+def test_page_begin_creates_page() -> None:
+    m = feed(e(msgid="PAGE_BEGIN", id="p1", label="Page One"))
+    assert "p1" in m.pages
+    assert m.pages["p1"].title == "Page One"
+    assert m.active_page == "p1"
 
 
-def test_close_page_alone_is_blank_slate():
-    """PAGE_END with no events produces an entirely empty PageView."""
-    v = view(e(msgid="PAGE_END", id="p1"))
-    assert v.ctas == []
-    assert v.nodes == []
-    assert v.forms == []
+def test_page_begin_without_label_uses_id_as_title() -> None:
+    m = feed(e(msgid="PAGE_BEGIN", id="snapshot"))
+    assert m.pages["snapshot"].title == "snapshot"
 
 
-def test_open_then_close_with_no_data_is_blank():
-    """A complete but empty page frame leaves the model blank."""
-    v = view(
+def test_duplicate_page_begin_is_ignored() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1", label="First"),
+        e(msgid="SCALAR_SET", id="x", label="X", value="1"),
+        e(msgid="PAGE_BEGIN", id="p1", label="Second"),
+    )
+    assert m.pages["p1"].title == "First"
+    assert "x" in m.pages["p1"].scalars
+
+
+def test_first_page_begin_sets_active_page() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="a"),
+        e(msgid="PAGE_BEGIN", id="b"),
+    )
+    assert m.active_page == "a"
+
+
+def test_events_before_any_page_begin_are_dropped() -> None:
+    m = feed(e(msgid="SCALAR_SET", id="x", label="X", value="orphan"))
+    assert m.current_page() is None
+
+
+def test_page_end_does_not_wipe_page() -> None:
+    m = feed(
         e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="SCALAR_SET", id="v", value="42"),
         e(msgid="PAGE_END", id="p1"),
     )
-    assert v.ctas == [] and v.nodes == [] and v.forms == []
+    assert "v" in m.pages["p1"].scalars
 
 
-def test_second_open_page_starts_fresh():
-    """
-    build_page_view called on only the second page's events must not contain
-    anything from the first page — simulating the close → open wipe.
-    """
-    page1 = [
-        e(msgid="PAGE_BEGIN", id="p1"),
-        e(msgid="SCALAR_SET", id="old", label="Old", value="gone"),
-        e(msgid="PAGE_END", id="p1"),
-    ]
-    page2 = [
+def test_second_page_events_fed_alone_yield_only_that_page() -> None:
+    m = feed(
         e(msgid="PAGE_BEGIN", id="p2"),
         e(msgid="SCALAR_SET", id="new", label="New", value="here"),
         e(msgid="PAGE_END", id="p2"),
-    ]
-
-    # page 2 events alone — fresh slate, only page 2 data
-    v = view(*page2)
-    assert len(v.nodes) == 1
-    assert isinstance(v.nodes[0], ScalarItem)
-    assert v.nodes[0].label == "New"
-
-    # page 1 events alone — only page 1 data
-    v1 = view(*page1)
-    assert len(v1.nodes) == 1
-    assert v1.nodes[0].label == "Old"
+    )
+    assert len(m.pages) == 1
+    assert "new" in m.pages["p2"].scalars
 
 
 # ── SCALAR_SET ────────────────────────────────────────────────────────────────
 
 
-def test_scalar_appears_in_nodes():
-    v = view(
+def test_scalar_stored_on_active_page() -> None:
+    m = feed(
         e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="SCALAR_SET", id="ver", label="Version", value="0.1.0"),
     )
-    assert len(v.nodes) == 1
-    s = v.nodes[0]
-    assert isinstance(s, ScalarItem)
-    assert s.label == "Version"
-    assert s.value == "0.1.0"
-    assert s.unit == ""
+    assert "ver" in m.pages["p1"].scalars
+    assert m.pages["p1"].scalars["ver"]["value"] == "0.1.0"
 
 
-def test_scalar_unit_is_preserved():
-    v = view(e(msgid="SCALAR_SET", id="sz", label="Size", value="1.2", unit="MB"))
-    s = v.nodes[0]
-    assert isinstance(s, ScalarItem)
-    assert s.unit == "MB"
-
-
-def test_multiple_scalars_preserve_document_order():
-    v = view(
-        e(msgid="SCALAR_SET", id="a", label="A", value="1"),
-        e(msgid="SCALAR_SET", id="b", label="B", value="2"),
-        e(msgid="SCALAR_SET", id="c", label="C", value="3"),
+def test_scalar_label_and_unit_preserved() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="SCALAR_SET", id="sz", label="Size", value="1.2", unit="MB"),
     )
-    labels = [n.label for n in v.nodes if isinstance(n, ScalarItem)]
-    assert labels == ["A", "B", "C"]
+    ev = m.pages["p1"].scalars["sz"]
+    assert ev["label"] == "Size"
+    assert ev["unit"] == "MB"
 
 
-# ── LIST_DECLARE ──────────────────────────────────────────────────────────────
+def test_scalar_overwritten_by_same_id() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="SCALAR_SET", id="x", value="1"),
+        e(msgid="SCALAR_SET", id="x", value="2"),
+    )
+    assert m.pages["p1"].scalars["x"]["value"] == "2"
 
 
-def test_list_declare_produces_list_section():
-    """A LIST_DECLARE with single-token commands adds a ListSection to nodes."""
-    v = view(
+# ── LIST_DECLARE / LIST_APPEND ────────────────────────────────────────────────
+
+
+def test_list_declare_creates_slot() -> None:
+    m = feed(
         e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="LIST_DECLARE", id="cmds", label="Commands"),
-        e(
-            msgid="LIST_APPEND",
-            id="cmds",
-            value={"command": "snapshot", "description": "Manage snapshots"},
-        ),
-        e(msgid="LIST_APPEND", id="cmds", value={"command": "config", "description": "App config"}),
         e(msgid="LIST_END", id="cmds"),
     )
-    assert len(v.nodes) == 1
-    node = v.nodes[0]
-    assert isinstance(node, ListSection)
-    assert node.label == "Commands"
-    assert len(node.items) == 2
-    assert node.items[0].label == "Snapshot"
-    assert node.items[1].label == "Config"
+    assert "cmds" in m.pages["p1"].lists
+    assert m.pages["p1"].lists["cmds"]["declare"]["label"] == "Commands"
 
 
-def test_list_two_token_commands_become_ctas_not_list():
-    """Items with 2+ non-flag tokens route to CTAs, not to nodes."""
-    v = view(
-        e(msgid="LIST_DECLARE", id="acts"),
-        e(
-            msgid="LIST_APPEND",
-            id="acts",
-            value={"command": "snapshot create", "description": "Take one"},
-        ),
-        e(
-            msgid="LIST_APPEND",
-            id="acts",
-            value={"command": "snapshot restore", "description": "Restore"},
-        ),
-        e(msgid="LIST_END", id="acts"),
+def test_list_append_stores_items_in_order() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="LIST_DECLARE", id="cmds", label="Commands"),
+        e(msgid="LIST_APPEND", id="cmds", value={"command": "snapshot", "description": "Manage"}),
+        e(msgid="LIST_APPEND", id="cmds", value={"command": "config", "description": "Config"}),
+        e(msgid="LIST_END", id="cmds"),
     )
-    assert len(v.ctas) == 2
-    assert v.nodes == []
-    assert [a.label for a in v.ctas] == ["Create", "Restore"]
+    items = m.pages["p1"].lists["cmds"]["items"]
+    assert len(items) == 2
+    assert items[0]["command"] == "snapshot"
+    assert items[1]["command"] == "config"
 
 
-def test_list_items_with_value_params_become_forms():
-    """Items with a required positional or flag-with-metavar route to forms."""
-    param = {"name": "path", "kind": "positional", "metavar": "PATH", "required": True}
-    v = view(
-        e(msgid="LIST_DECLARE", id="acts"),
-        e(
-            msgid="LIST_APPEND",
-            id="acts",
-            value={
-                "command": "snapshot",
-                "description": "Snap",
-                "params": [param],
-            },
-        ),
-        e(msgid="LIST_END", id="acts"),
-    )
-    assert len(v.forms) == 1
-    assert v.forms[0].label == "Snapshot"
-    assert len(v.forms[0].params) == 1
-    assert v.forms[0].params[0].name == "path"
-
-
-def test_list_append_with_wrong_id_is_ignored():
-    """LIST_APPEND whose id doesn't match the open LIST_DECLARE is dropped."""
-    v = view(
+def test_list_append_with_wrong_id_is_ignored() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="LIST_DECLARE", id="list-a"),
-        e(msgid="LIST_APPEND", id="list-b", value={"command": "snapshot", "description": "x"}),
+        e(msgid="LIST_APPEND", id="list-b", value={"command": "snapshot"}),
         e(msgid="LIST_END", id="list-a"),
     )
-    assert v.nodes == []
+    assert m.pages["p1"].lists["list-a"]["items"] == []
 
 
-def test_list_subpage_routes_all_items_to_forms():
-    """In subpage mode every list item becomes a form regardless of token count."""
-    v = view(
+def test_all_command_token_counts_land_in_list() -> None:
+    """Single-token and multi-token commands both go into the list — no routing."""
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="LIST_DECLARE", id="acts"),
-        e(msgid="LIST_APPEND", id="acts", value={"command": "snapshot create", "description": "x"}),
+        e(msgid="LIST_APPEND", id="acts", value={"command": "snapshot", "description": "Nav"}),
+        e(
+            msgid="LIST_APPEND",
+            id="acts",
+            value={"command": "snapshot create", "description": "Action"},
+        ),
         e(msgid="LIST_END", id="acts"),
-        is_subpage=True,
     )
-    assert len(v.forms) == 1
-    assert v.ctas == []
+    assert len(m.pages["p1"].lists["acts"]["items"]) == 2
 
 
-# ── TABLE_DECLARE ─────────────────────────────────────────────────────────────
+def test_list_items_with_params_stored_verbatim() -> None:
+    """Params stored as-is; no is_form_param filtering in the model."""
+    param = {"name": "path", "kind": "positional", "required": True}
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="LIST_DECLARE", id="acts"),
+        e(msgid="LIST_APPEND", id="acts", value={"command": "snap", "params": [param]}),
+        e(msgid="LIST_END", id="acts"),
+    )
+    item = m.pages["p1"].lists["acts"]["items"][0]
+    assert item["params"][0]["name"] == "path"
 
 
-def test_table_produces_table_section():
-    v = view(
+# ── TABLE_DECLARE / TABLE_ROW ─────────────────────────────────────────────────
+
+
+def test_table_declare_creates_slot() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="TABLE_DECLARE", id="snaps", schema=["id", "date"]),
-        e(msgid="TABLE_ROW", id="snaps", values={"id": "s1", "date": "2026-01-01"}),
-        e(msgid="TABLE_ROW", id="snaps", values={"id": "s2", "date": "2026-01-02"}),
         e(msgid="TABLE_END", id="snaps"),
     )
-    assert len(v.nodes) == 1
-    t = v.nodes[0]
-    assert isinstance(t, TableSection)
-    assert t.schema == ["id", "date"]
-    assert t.rows == [
-        {"id": "s1", "date": "2026-01-01"},
-        {"id": "s2", "date": "2026-01-02"},
-    ]
+    assert "snaps" in m.pages["p1"].tables
+    assert m.pages["p1"].tables["snaps"]["declare"]["schema"] == ["id", "date"]
 
 
-def test_table_row_with_wrong_id_is_ignored():
-    v = view(
+def test_table_rows_appended_in_order() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="TABLE_DECLARE", id="t", schema=["id", "date"]),
+        e(msgid="TABLE_ROW", id="t", values={"id": "s1", "date": "2026-01-01"}),
+        e(msgid="TABLE_ROW", id="t", values={"id": "s2", "date": "2026-01-02"}),
+        e(msgid="TABLE_END", id="t"),
+    )
+    rows = m.pages["p1"].tables["t"]["rows"]
+    assert rows == [{"id": "s1", "date": "2026-01-01"}, {"id": "s2", "date": "2026-01-02"}]
+
+
+def test_table_row_with_wrong_id_is_ignored() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="TABLE_DECLARE", id="t1", schema=["name"]),
         e(msgid="TABLE_ROW", id="t2", values={"name": "wrong"}),
         e(msgid="TABLE_END", id="t1"),
     )
-    t = v.nodes[0]
-    assert isinstance(t, TableSection)
-    assert t.rows == []
+    assert m.pages["p1"].tables["t1"]["rows"] == []
 
 
-def test_empty_table_still_produces_table_section():
-    v = view(
+def test_empty_table_has_no_rows() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
         e(msgid="TABLE_DECLARE", id="t", schema=["col"]),
         e(msgid="TABLE_END", id="t"),
     )
-    assert isinstance(v.nodes[0], TableSection)
-    assert v.nodes[0].rows == []
+    assert m.pages["p1"].tables["t"]["rows"] == []
 
 
-# ── Document ordering ─────────────────────────────────────────────────────────
+# ── current_page ──────────────────────────────────────────────────────────────
 
 
-def test_pending_scalars_flush_before_table():
-    """Scalars buffered before a TABLE_DECLARE must appear before the table."""
-    v = view(
-        e(msgid="SCALAR_SET", id="x", label="X", value="1"),
-        e(msgid="TABLE_DECLARE", id="t", schema=["col"]),
-        e(msgid="TABLE_END", id="t"),
+def test_current_page_returns_active_page() -> None:
+    m = feed(
+        e(msgid="PAGE_BEGIN", id="p1"),
+        e(msgid="SCALAR_SET", id="x", value="1"),
     )
-    assert isinstance(v.nodes[0], ScalarItem)
-    assert isinstance(v.nodes[1], TableSection)
+    page = m.current_page()
+    assert isinstance(page, UIPage)
+    assert page.key == "p1"
+    assert "x" in page.scalars
 
 
-def test_pending_scalars_flush_before_list():
-    """Scalars buffered before a LIST_DECLARE must appear before the list."""
-    v = view(
-        e(msgid="SCALAR_SET", id="x", label="X", value="1"),
-        e(msgid="LIST_DECLARE", id="l", label="Items"),
-        e(msgid="LIST_APPEND", id="l", value={"command": "snapshot", "description": "x"}),
-        e(msgid="LIST_END", id="l"),
-    )
-    assert isinstance(v.nodes[0], ScalarItem)
-    assert isinstance(v.nodes[1], ListSection)
-
-
-def test_scalar_table_list_interleaved_preserves_order():
-    """Mixed event types land in nodes in the order they were emitted."""
-    v = view(
-        e(msgid="SCALAR_SET", id="a", label="A", value="1"),
-        e(msgid="TABLE_DECLARE", id="t", schema=["col"]),
-        e(msgid="TABLE_END", id="t"),
-        e(msgid="SCALAR_SET", id="b", label="B", value="2"),
-        e(msgid="LIST_DECLARE", id="l", label="L"),
-        e(msgid="LIST_APPEND", id="l", value={"command": "snapshot", "description": "x"}),
-        e(msgid="LIST_END", id="l"),
-    )
-    assert isinstance(v.nodes[0], ScalarItem)  # A
-    assert isinstance(v.nodes[1], TableSection)
-    assert isinstance(v.nodes[2], ScalarItem)  # B flushed before list
-    assert isinstance(v.nodes[3], ListSection)
+def test_current_page_is_none_with_no_pages() -> None:
+    assert UIModel().current_page() is None
