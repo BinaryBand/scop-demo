@@ -20,7 +20,11 @@ class RootApp(BaseApp):
                 msgid=MSGID.PAGE_BEGIN,
                 room=None,
                 msg="=== scop ===",
-                data={"title": "scop", "subtitle": "Structured CLI Output Protocol"},
+                data={
+                    "title": "scop",
+                    "subtitle": "Structured CLI Output Protocol",
+                    "icon": ":scop:",
+                },
             )
         )
         if args.get("version"):

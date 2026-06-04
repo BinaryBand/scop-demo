@@ -73,37 +73,6 @@ def dispatch_events(command: str, args: dict[str, Any]) -> tuple[list[dict[str, 
         asyncio.set_event_loop(None)
         loop.close()
 
-    # Minimal icon mapping for help probes: attach a synthetic PAGE_BEGIN
-    # event containing an `icon` when callers request `--help` but the
-    # app's help path doesn't emit a PAGE_BEGIN with icon. This keeps GUI
-    # nav icons available without running the full page.
-    icon_map: dict[str, str] = {
-        "config": ":gear:",
-        "snapshot": ":package:",
-    }
-    if args.get("help") and command in icon_map and icon_map[command]:
-        with contextlib.suppress(Exception):
-            found = False
-            for ev in events:
-                if isinstance(ev, dict) and ev.get("msgid") == "PAGE_BEGIN":
-                    data = ev.get("data")
-                    if not isinstance(data, dict):
-                        ev["data"] = {"icon": icon_map[command]}
-                    else:
-                        if not data.get("icon"):
-                            data["icon"] = icon_map[command]
-                    found = True
-                    break
-            if not found:
-                events.insert(
-                    0,
-                    {
-                        "msgid": "PAGE_BEGIN",
-                        "room": command or None,
-                        "data": {"icon": icon_map[command]},
-                    },
-                )
-
     return events, ok
 
 

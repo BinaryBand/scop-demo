@@ -245,7 +245,11 @@ def index() -> str:
 
     if not current:
         return render_template(
-            "base.html", title="No pages", message="No pages found.", extra_head=MATERIAL_HEAD
+            "base.html",
+            title="No pages",
+            message="No pages found.",
+            page_icons={},
+            extra_head=MATERIAL_HEAD,
         )
 
     page = _fetch_sub(current, sub) if sub else _fetch(current)
@@ -256,6 +260,7 @@ def index() -> str:
             "base.html",
             title="No data",
             message=f"No data for {escape(label)}.",
+            page_icons={},
             extra_head=MATERIAL_HEAD,
         )
 

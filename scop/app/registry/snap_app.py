@@ -332,7 +332,7 @@ class SnapApp(BaseApp):
                 msgid=MSGID.PAGE_BEGIN,
                 room=room,
                 msg=f"=== {title} ===",
-                data={"title": title, "subtitle": subtitle},
+                data={"title": title, "subtitle": subtitle, "icon": ":package:"},
             )
         )
 
