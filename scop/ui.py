@@ -46,7 +46,7 @@ class UIModel:
         msgid = str(event.get("msgid", ""))
 
         if msgid == MSGID.PAGE_BEGIN:
-            page_id = str(event.get("id", "")).strip()
+            page_id = str(event.get("id") or event.get("room") or "").strip()
             if page_id and page_id not in self.pages:
                 self.pages[page_id] = UIPage(
                     key=page_id,
