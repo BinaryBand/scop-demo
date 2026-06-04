@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8">
     <title>{{ title or page.title }}</title>
+    {% block head %}{% if extra_head %}{{ extra_head | safe }}{% endif %}{% endblock %}
   </head>
-  <body>
+  <body class="mdc-typography">
     <p>
       {% for p in pages %}
         {% if p == current %}
