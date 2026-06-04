@@ -32,7 +32,7 @@ forbidden_modules =
 name = CLI may only import AppDispatcher module
 type = forbidden
 source_modules =
-    scop.clig
+    scop.cli
 forbidden_modules =
     scop.adapters
     scop.services
@@ -41,7 +41,7 @@ forbidden_modules =
     scop.utils
     scop.app
 ignore_imports =
-    scop.clig -> scop.app.dispatcher
+    scop.cli -> scop.app.dispatcher
 
 
 # app/ — edge verbs: wires, types

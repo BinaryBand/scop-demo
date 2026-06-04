@@ -15,14 +15,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from scop.clig import (
+from scop.ui import (
     ListSection,
     PageView,
     ScalarItem,
     TableSection,
     build_page_view,
+    parse_ndjson,
 )
-from scop.ui import parse_ndjson
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ def test_second_open_page_starts_fresh():
     # page 1 events alone — only page 1 data
     v1 = view(*page1)
     assert len(v1.nodes) == 1
-    assert v1.nodes[0].label == "Old"  # ty:ignore[unresolved-attribute]
+    assert v1.nodes[0].label == "Old"
 
 
 # ── SCALAR_SET ────────────────────────────────────────────────────────────────
