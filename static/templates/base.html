@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>{{ title or page.title }}</title>
     {% block head %}{% if extra_head %}{{ extra_head | safe }}{% endif %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='templates/partials/mui.css') }}">
   <body class="mdc-typography">
   <body class="mdc-typography">
 

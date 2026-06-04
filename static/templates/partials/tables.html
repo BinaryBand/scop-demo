@@ -1,9 +1,12 @@
 {# Tables partial: expects `tables` list in context #}
 {% for t in tables %}
-  <table border="1" cellpadding="4">
-    <tr>
-      {% for c in t.schema %}<th>{{ c }}</th>{% endfor %}
-    </tr>
+  <table class="mdc-data-table" cellpadding="4">
+    <thead>
+      <tr>
+        {% for c in t.schema %}<th>{{ c }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
     {% for row in t.rows %}
       <tr>
         {% for c in t.schema %}
@@ -11,5 +14,6 @@
         {% endfor %}
       </tr>
     {% endfor %}
+    </tbody>
   </table>
 {% endfor %}

@@ -1,4 +1,4 @@
 {# Scalars partial: expects `scalars` list in context #}
 {% for s in scalars %}
-  <p>{{ s.label }}: <b>{{ s.value }}</b>{% if s.unit %} {{ s.unit }}{% endif %}</p>
+  <p class="mdc-typography--body1"><strong>{{ s.label }}</strong>: <span class="mdc-typography--subtitle1">{{ s.value }}</span>{% if s.unit %} {{ s.unit }}{% endif %}</p>
 {% endfor %}

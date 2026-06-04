@@ -1,15 +1,15 @@
 {# Lists partial: expects `lists` and `current` in context #}
 {% for lst in lists %}
   <p><b>{{ lst.label }}</b></p>
-  <ul>
+  <ul class="mdc-list">
     {% for item in lst.entries %}
-      <li>
+      <li class="mdc-list-item">
         {% if item.is_sub_target %}
           <a href="/?page={{ current }}&sub={{ item.last }}">{{ item.label_str }}</a> — {{ item.desc }}
         {% else %}
           <form method="post" action="/run" style="display:inline">
             {% include 'partials/form_inputs.html' %}
-            <button>{{ item.label_str }}</button>
+            <button class="mdc-button"><span class="mdc-button__label">{{ item.label_str }}</span></button>
           </form> — {{ item.desc }}
         {% endif %}
       </li>

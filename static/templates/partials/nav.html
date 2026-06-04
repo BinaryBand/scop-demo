@@ -1,14 +1,16 @@
-<p>
-  {% for p in pages %}
-    {% if p == current %}
-      <strong>[{{ p }}]</strong>
-    {% else %}
-      <a href="/?page={{ p }}">{{ p }}</a>
+<nav class="mdc-card">
+  <p class="mdc-typography--subtitle1">
+    {% for p in pages %}
+      {% if p == current %}
+        <strong>[{{ p }}]</strong>
+      {% else %}
+        <a href="/?page={{ p }}">{{ p }}</a>
+      {% endif %}
+      {% if not loop.last %} | {% endif %}
+    {% endfor %}
+    {% if sub %}
+      &gt; <strong>{{ sub }}</strong>
     {% endif %}
-    {% if not loop.last %} | {% endif %}
-  {% endfor %}
-  {% if sub %}
-    &gt; <strong>{{ sub }}</strong>
-  {% endif %}
-</p>
+  </p>
+</nav>
 <hr>
