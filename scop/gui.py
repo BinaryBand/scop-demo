@@ -37,10 +37,19 @@ def _discover_pages(events: list[dict[str, Any]]) -> list[str]:
     return pages
 
 
+_PROBES: list[dict[str, object]] = [
+    {"action": "status"},
+    {"action": "list", "all": True},
+    {"list": True},
+    {"help": True},
+]
+
+
 def _fetch(key: str) -> UIPage | None:
-    events, _ = dispatch_events(key, {"help": True})
     m = UIModel()
-    m.ingest_many(events)
+    for args in _PROBES:
+        events, _ = dispatch_events(key, dict(args))
+        m.ingest_many(events)
     return m.current_page()
 
 
