@@ -9,14 +9,19 @@ directly from the browser.
 from __future__ import annotations
 
 from html import escape
+from pathlib import Path
 from typing import Any
 
-from flask import Flask, request
+from flask import Flask, redirect, render_template, request, url_for
+from werkzeug.wrappers import Response as WResponse
 
 from scop.cli import dispatch_events
 from scop.ui import UIModel, UIPage
 
-_app = Flask(__name__)
+_ROOT = Path(__file__).resolve().parent.parent
+_TEMPLATE_DIR = _ROOT / "static" / "templates"
+_STATIC_DIR = _ROOT / "static"
+_app = Flask(__name__, template_folder=str(_TEMPLATE_DIR), static_folder=str(_STATIC_DIR))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,69 +108,65 @@ def _form_inputs(cmd: str, current: str, params: list[dict[str, Any]]) -> str:
 
 
 def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
+    # Prepare context for template rendering to keep presentation logic out of templates
     is_subpage = bool(sub)
-    out: list[str] = [
-        "<!DOCTYPE html><html><body>",
-        f"<p>{_nav(pages, current, sub)}</p><hr>",
-        f"<h2>{escape(page.title)}</h2>",
-    ]
 
-    # Scalars
+    scalars = []
     for sid, ev in page.scalars.items():
-        label = escape(str(ev.get("label") or sid))
-        value = escape(str(ev.get("value", "")))
-        unit = escape(str(ev.get("unit") or ""))
-        out.append(f"<p>{label}: <b>{value}</b>{' ' + unit if unit else ''}</p>")
+        scalars.append({
+            "label": str(ev.get("label") or sid),
+            "value": str(ev.get("value", "")),
+            "unit": str(ev.get("unit") or ""),
+        })
 
-    # Tables
+    tables = []
     for entry in page.tables.values():
         decl = entry.get("declare", {})
         rows = entry.get("rows", [])
         schema = [str(c) for c in (decl.get("schema") or [])]
         if not schema:
             continue
-        out.append('<table border="1" cellpadding="4"><tr>')
-        out.extend(f"<th>{escape(c)}</th>" for c in schema)
-        out.append("</tr>")
-        for row in rows:
-            out.append("<tr>")
-            out.extend(f"<td>{escape(str(row.get(c, '')))}</td>" for c in schema)
-            out.append("</tr>")
-        out.append("</table>")
+        tables.append({"schema": schema, "rows": rows})
 
-    # Lists
+    lists = []
     for lid, entry in page.lists.items():
         decl = entry.get("declare", {})
-        label = escape(str(decl.get("label") or lid))
+        label = str(decl.get("label") or lid)
         items = [x for x in entry.get("items", []) if isinstance(x, dict) and x.get("command")]
         if not items:
             continue
-        out.append(f"<p><b>{label}</b></p><ul>")
+        processed = []
         for item in items:
             cmd = str(item["command"])
-            desc = escape(str(item.get("description", "")))
+            desc = str(item.get("description", ""))
             params = [p for p in (item.get("params") or []) if isinstance(p, dict)]
             non_flag = [t for t in cmd.split() if not t.startswith("-")]
             last = non_flag[-1] if non_flag else cmd.split()[-1]
-            label_str = escape(last.replace("-", " ").title())
+            label_str = last.replace("-", " ").title()
+            is_sub_target = (not is_subpage) and len(non_flag) >= 2
+            processed.append({
+                "cmd": cmd,
+                "desc": desc,
+                "params": params,
+                "non_flag": non_flag,
+                "last": last,
+                "label_str": label_str,
+                "is_sub_target": is_sub_target,
+                # templates will render form inputs from `params` safely
+            })
+        lists.append({"label": label, "entries": processed})
 
-            if not is_subpage and len(non_flag) >= 2:
-                # Subcommand → navigate into a subpage
-                out.append(
-                    f'<li><a href="/?page={escape(current)}&sub={escape(last)}">'
-                    f"{label_str}</a> — {desc}</li>"
-                )
-            else:
-                # Leaf command or subpage context → inline form
-                out.append(
-                    f'<li><form method="post" action="/run" style="display:inline">'
-                    f"{_form_inputs(cmd, current, params)}"
-                    f"<button>{label_str}</button></form> — {desc}</li>"
-                )
-        out.append("</ul>")
-
-    out.append("</body></html>")
-    return "\n".join(out)
+    return render_template(
+        "page.html",
+        pages=pages,
+        current=current,
+        sub=sub,
+        page=page,
+        scalars=scalars,
+        tables=tables,
+        lists=lists,
+        is_subpage=is_subpage,
+    )
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -179,24 +180,26 @@ def index() -> str:
     sub = request.args.get("sub", "")
 
     if not current:
-        return "<!DOCTYPE html><html><body><p>No pages found.</p></body></html>"
+        return render_template("message.html", title="No pages", message="No pages found.")
 
     page = _fetch_sub(current, sub) if sub else _fetch(current)
 
     if page is None:
         label = f"{current}/{sub}" if sub else current
-        return f"<!DOCTYPE html><html><body><p>No data for {escape(label)}.</p></body></html>"
+        return render_template(
+            "message.html", title="No data", message=f"No data for {escape(label)}."
+        )
 
     return _render(page, pages, current, sub)
 
 
 @_app.route("/run", methods=["POST"])
-def run() -> str:
+def run() -> WResponse | str:
     cmd_parts = request.form.get("__cmd", "").split()
     page_key = request.form.get("__page", "")
 
     if not cmd_parts:
-        return _redirect(f"/?page={page_key}")
+        return redirect(url_for("index", page=page_key))
 
     command = cmd_parts[0]
     args: dict[str, Any] = {}
@@ -226,7 +229,7 @@ def run() -> str:
 
     if page:
         return _render(page, pages, page_key)
-    return _redirect(f"/?page={page_key}")
+    return redirect(url_for("index", page=page_key))
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

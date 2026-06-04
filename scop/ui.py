@@ -35,7 +35,7 @@ class UIPage:
 class UIModel:
     """State-only model: tracks page slots from SCOP events.
 
-    No dispatch calls, no rendering decisions.  Feed events in; read slots out.
+    No dispatch calls, no rendering decisions. Feed events in; read slots out.
     """
 
     def __init__(self) -> None:

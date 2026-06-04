@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>{{ page.title }}</h2>
+
+  {# Scalars #}
+  {% for s in scalars %}
+    <p>{{ s.label }}: <b>{{ s.value }}</b>{% if s.unit %} {{ s.unit }}{% endif %}</p>
+  {% endfor %}
+
+  {# Tables #}
+  {% for t in tables %}
+    <table border="1" cellpadding="4">
+      <tr>
+        {% for c in t.schema %}<th>{{ c }}</th>{% endfor %}
+      </tr>
+      {% for row in t.rows %}
+        <tr>
+          {% for c in t.schema %}
+            <td>{{ row.get(c, '') }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </table>
+  {% endfor %}
+
+  {# Lists #}
+  {% for lst in lists %}
+    <p><b>{{ lst.label }}</b></p>
+    <ul>
+      {% for item in lst.entries %}
+        <li>
+          {% if item.is_sub_target %}
+            <a href="/?page={{ current }}&sub={{ item.last }}">{{ item.label_str }}</a> — {{ item.desc }}
+          {% else %}
+            <form method="post" action="/run" style="display:inline">
+              <input type="hidden" name="__cmd" value="{{ item.cmd }}">
+              <input type="hidden" name="__page" value="{{ current }}">
+              {% for p in item.params %}
+                {% set name = p.get('name', '') %}
+                {% set kind = p.get('kind', 'flag') %}
+                {% set metavar = p.get('metavar') or name %}
+                {% set default = p.get('default') or '' %}
+                {% if kind == 'positional' %}
+                  <input name="pos:{{ name }}" placeholder="{{ metavar }}" value="{{ default }}" required>
+                {% else %}
+                  <input name="{{ name }}" placeholder="{{ metavar }}" value="{{ default }}" {% if p.get('required') %}required{% endif %}>
+                {% endif %}
+              {% endfor %}
+              <button>{{ item.label_str }}</button>
+            </form> — {{ item.desc }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endfor %}
+
+{% endblock %}
