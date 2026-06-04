@@ -1,0 +1,13 @@
+<input type="hidden" name="__cmd" value="{{ item.cmd | e }}">
+<input type="hidden" name="__page" value="{{ current | e }}">
+{% for p in item.params %}
+  {% set name = p.get('name', '') %}
+  {% set kind = p.get('kind', 'flag') %}
+  {% set metavar = p.get('metavar') or name %}
+  {% set default = p.get('default') or '' %}
+  {% if kind == 'positional' %}
+    <input name="pos:{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" required>
+  {% else %}
+    <input name="{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
+  {% endif %}
+{% endfor %}

@@ -65,48 +65,6 @@ def _fetch_sub(key: str, sub: str) -> UIPage | None:
     return m.current_page()
 
 
-def _redirect(url: str) -> str:
-    safe = escape(url)
-    return (
-        f"<!DOCTYPE html><html><head>"
-        f'<meta http-equiv="refresh" content="0;url={safe}">'
-        f"</head><body></body></html>"
-    )
-
-
-def _nav(pages: list[str], current: str, sub: str = "") -> str:
-    parts = []
-    for p in pages:
-        if p == current:
-            link = f"<strong>[{escape(p)}]</strong>"
-        else:
-            link = f'<a href="/?page={escape(p)}">{escape(p)}</a>'
-        parts.append(link)
-    nav = " | ".join(parts)
-    if sub:
-        back = f'<a href="/?page={escape(current)}">{escape(current)}</a>'
-        nav = nav.replace(f"<strong>[{escape(current)}]</strong>", back)
-        nav += f" &gt; <strong>{escape(sub)}</strong>"
-    return nav
-
-
-def _form_inputs(cmd: str, current: str, params: list[dict[str, Any]]) -> str:
-    """Render hidden cmd/page fields plus one <input> per param."""
-    parts = [
-        f'<input type="hidden" name="__cmd" value="{escape(cmd)}">',
-        f'<input type="hidden" name="__page" value="{escape(current)}">',
-    ]
-    for p in params:
-        name = str(p.get("name", ""))
-        kind = str(p.get("kind", "flag"))
-        metavar = escape(str(p.get("metavar") or name))
-        default = escape(str(p.get("default") or ""))
-        req = " required" if p.get("required", kind == "positional") else ""
-        fname = f"pos:{escape(name)}" if kind == "positional" else escape(name)
-        parts.append(f'<input name="{fname}" placeholder="{metavar}" value="{default}"{req}> ')
-    return "".join(parts)
-
-
 def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
     # Prepare context for template rendering to keep presentation logic out of templates
     is_subpage = bool(sub)
