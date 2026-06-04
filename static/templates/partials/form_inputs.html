@@ -1,60 +1,39 @@
 <input type="hidden" name="__cmd" value="{{ item.cmd | e }}">
 <input type="hidden" name="__page" value="{{ current | e }}">
-
-{# Render inputs using simple Material-style components based on parameter metadata #}
 {% for p in item.params %}
   {% set name = p.get('name', '') %}
   {% set kind = p.get('kind', 'flag') %}
   {% set metavar = p.get('metavar') or name %}
-  {% set default = (p.get('default') or '') %}
-  {% set id_raw = current ~ '-' ~ item.last ~ '-' ~ name %}
-  {% set id = id_raw | replace(' ', '_') | replace('--', '') | replace('-', '_') %}
+  {% set default = p.get('default') or '' %}
 
-  {% if kind == 'positional' %}
-    {# Positional arguments: text input, optionally with datalist suggestions #}
-    {% if p.get('options') %}
-      <div class="mdc-text-field mdc-text-field--filled">
-        <input list="dl-{{ id }}" name="pos:{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
-      </div>
-      <datalist id="dl-{{ id }}">
+  {# If the help metadata provides `options`, render a plain HTML select. #}
+  {% if p.get('options') %}
+    {% if kind == 'positional' %}
+      <select name="pos:{{ name }}" {% if p.get('required') %}required{% endif %}>
+        {% if not p.get('required') %}
+          <option value="">-</option>
+        {% endif %}
         {% for opt in p.get('options') %}
-          <option value="{{ opt }}"></option>
+          <option value="{{ opt | e }}" {% if opt == default %}selected{% endif %}>{{ opt }}</option>
         {% endfor %}
-      </datalist>
+      </select>
     {% else %}
-      <div class="mdc-text-field mdc-text-field--filled">
-        <input type="text" name="pos:{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
-      </div>
+      <select name="{{ name }}" {% if p.get('required') %}required{% endif %}>
+        {% if not p.get('required') %}
+          <option value="">-</option>
+        {% endif %}
+        {% for opt in p.get('options') %}
+          <option value="{{ opt | e }}" {% if opt == default %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
     {% endif %}
 
+  {# Otherwise fall back to a plain text input. #}
   {% else %}
-    {# Flags: boolean -> checkbox, options -> select/datalist, otherwise text field #}
-    {% if p.get('type') == 'boolean' %}
-      <label class="mdc-form-field" for="{{ id }}">
-        <input type="checkbox" name="{{ name }}" id="{{ id }}" value="true" {% if default %}checked{% endif %}>
-        <span>{{ p.get('short') or p.get('metavar') or name }}</span>
-      </label>
-
-    {% elif p.get('options') %}
-      {# Use MDC native select so we get the dropdown arrow and proper MUI behaviour #}
-      <div class="mdc-select mdc-select--filled">
-        <select name="{{ name }}" id="{{ id }}" class="mdc-select__native-control" {% if p.get('required') %}required{% endif %}>
-          {% if not p.get('required') %}
-            <option value="">-</option>
-          {% endif %}
-          {% for opt in p.get('options') %}
-            <option value="{{ opt }}" {% if opt == default %}selected{% endif %}>{{ opt }}</option>
-          {% endfor %}
-        </select>
-        <label class="mdc-floating-label" for="{{ id }}">{{ metavar }}</label>
-        <div class="mdc-line-ripple"></div>
-      </div>
-
+    {% if kind == 'positional' %}
+      <input name="pos:{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
     {% else %}
-      <div class="mdc-text-field mdc-text-field--filled">
-        <input type="text" name="{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
-      </div>
+      <input name="{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
     {% endif %}
-
   {% endif %}
 {% endfor %}
