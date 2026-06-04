@@ -6,7 +6,7 @@
     {% block head %}{% if extra_head %}{{ extra_head | safe }}{% endif %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='templates/partials/mui.css') }}">
   <body class="mdc-typography">
-  <body class="mdc-typography">
+    {% include 'partials/nav.html' %}
 
     {# Unified page/message rendering: if `message` is provided render it,
        otherwise render the full page using partials. #}

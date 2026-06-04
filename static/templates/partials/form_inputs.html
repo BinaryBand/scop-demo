@@ -1,13 +1,54 @@
 <input type="hidden" name="__cmd" value="{{ item.cmd | e }}">
 <input type="hidden" name="__page" value="{{ current | e }}">
+
+{# Render inputs using simple Material-style components based on parameter metadata #}
 {% for p in item.params %}
   {% set name = p.get('name', '') %}
   {% set kind = p.get('kind', 'flag') %}
   {% set metavar = p.get('metavar') or name %}
-  {% set default = p.get('default') or '' %}
+  {% set default = (p.get('default') or '') %}
+  {% set id_raw = current ~ '-' ~ item.last ~ '-' ~ name %}
+  {% set id = id_raw | replace(' ', '_') | replace('--', '') | replace('-', '_') %}
+
   {% if kind == 'positional' %}
-    <input name="pos:{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" required>
+    {# Positional arguments: text input, optionally with datalist suggestions #}
+    {% if p.get('options') %}
+      <div class="mdc-text-field mdc-text-field--filled">
+        <input list="dl-{{ id }}" name="pos:{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
+      </div>
+      <datalist id="dl-{{ id }}">
+        {% for opt in p.get('options') %}
+          <option value="{{ opt }}"></option>
+        {% endfor %}
+      </datalist>
+    {% else %}
+      <div class="mdc-text-field mdc-text-field--filled">
+        <input type="text" name="pos:{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
+      </div>
+    {% endif %}
+
   {% else %}
-    <input name="{{ name }}" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
+    {# Flags: boolean -> checkbox, options -> select/datalist, otherwise text field #}
+    {% if p.get('type') == 'boolean' %}
+      <label class="mdc-form-field" for="{{ id }}">
+        <input type="checkbox" name="{{ name }}" id="{{ id }}" value="true" {% if default %}checked{% endif %}>
+        <span>{{ p.get('short') or p.get('metavar') or name }}</span>
+      </label>
+
+    {% elif p.get('options') %}
+      <div class="mdc-select">
+        <select name="{{ name }}" id="{{ id }}" class="mdc-select__native-control">
+          {% for opt in p.get('options') %}
+            <option value="{{ opt }}" {% if opt == default %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+    {% else %}
+      <div class="mdc-text-field mdc-text-field--filled">
+        <input type="text" name="{{ name }}" id="{{ id }}" class="mdc-text-field__input" placeholder="{{ metavar }}" value="{{ default | e }}" {% if p.get('required') %}required{% endif %}>
+      </div>
+    {% endif %}
+
   {% endif %}
 {% endfor %}
