@@ -121,6 +121,86 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
             })
         lists.append({"label": label, "entries": processed})
 
+    # Populate `options` for parameters that declare `select_from` by
+    # dispatching the referenced command and extracting candidate values
+    # (prefer table first-column values, fall back to list-append values).
+    for lst in lists:
+        for ent in lst.get("entries", []):
+            if not isinstance(ent, dict):
+                continue
+            params_list = ent.get("params") or []
+            if not isinstance(params_list, list):
+                continue
+            for param in params_list:
+                if not isinstance(param, dict):
+                    continue
+                if param.get("options"):
+                    # already populated
+                    continue
+                select_from = param.get("select_from")
+                if not select_from:
+                    continue
+                # Parse a simple command string like "snapshot --list --all"
+                tokens = [t for t in str(select_from).split() if t]
+                if not tokens:
+                    continue
+                cmd = tokens[0]
+                args: dict[str, Any] = {}
+                # If second token is a non-flag, treat as action
+                if len(tokens) > 1 and not tokens[1].startswith("-"):
+                    args["action"] = tokens[1]
+                for part in tokens[1:]:
+                    if part.startswith("--"):
+                        args[part.lstrip("-").replace("-", "_")] = True
+                try:
+                    evs, _ok = dispatch_events(cmd, args)
+                except Exception:
+                    evs = []
+
+                opts: list[str] = []
+                # collect table schema by id so we can pick the canonical column
+                table_schema: dict[str, list[str]] = {}
+                for ev in evs:
+                    if ev.get("msgid") == "TABLE_DECLARE":
+                        tid = ev.get("id")
+                        schema = ev.get("schema") or ev.get("declare", {}).get("schema")
+                        if isinstance(schema, list) and isinstance(tid, str):
+                            table_schema[tid] = [str(c) for c in schema]
+
+                for ev in evs:
+                    mid = ev.get("msgid")
+                    if mid == "TABLE_ROW":
+                        vals = ev.get("values")
+                        if isinstance(vals, dict):
+                            tid = ev.get("id")
+                            first_col = None
+                            if isinstance(tid, str) and tid in table_schema and table_schema[tid]:
+                                first_col = table_schema[tid][0]
+                            # prefer schema-ordered column, fall back to first value
+                            if first_col and first_col in vals:
+                                s = str(vals.get(first_col))
+                            else:
+                                # unstable dict order; take the first value available
+                                s = next((str(v) for v in vals.values()), "")
+                            if s and s not in opts:
+                                opts.append(s)
+                    elif mid == "LIST_APPEND":
+                        val = ev.get("value")
+                        if isinstance(val, dict):
+                            if "name" in val:
+                                s = str(val.get("name"))
+                            elif "id" in val:
+                                s = str(val.get("id"))
+                            elif "command" in val:
+                                cmdval = str(val.get("command") or "")
+                                s = cmdval.split()[-1] if cmdval else cmdval
+                            else:
+                                s = str(val)
+                            if s and s not in opts:
+                                opts.append(s)
+                if opts:
+                    param["options"] = opts
+
     return render_template(
         "base.html",
         pages=pages,
