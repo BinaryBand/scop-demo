@@ -164,7 +164,7 @@ def _render(page: UIPage, pages: list[str], current: str, sub: str = "") -> str:
         lists.append({"label": label, "entries": processed})
 
     return render_template(
-        "page.html",
+        "base.html",
         pages=pages,
         current=current,
         sub=sub,
@@ -189,7 +189,7 @@ def index() -> str:
 
     if not current:
         return render_template(
-            "message.html", title="No pages", message="No pages found.", extra_head=MATERIAL_HEAD
+            "base.html", title="No pages", message="No pages found.", extra_head=MATERIAL_HEAD
         )
 
     page = _fetch_sub(current, sub) if sub else _fetch(current)
@@ -197,7 +197,7 @@ def index() -> str:
     if page is None:
         label = f"{current}/{sub}" if sub else current
         return render_template(
-            "message.html",
+            "base.html",
             title="No data",
             message=f"No data for {escape(label)}.",
             extra_head=MATERIAL_HEAD,

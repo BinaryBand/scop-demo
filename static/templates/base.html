@@ -4,9 +4,20 @@
     <meta charset="utf-8">
     <title>{{ title or page.title }}</title>
     {% block head %}{% if extra_head %}{{ extra_head | safe }}{% endif %}{% endblock %}
-  </head>
   <body class="mdc-typography">
-    {% include 'partials/nav.html' %}
+  <body class="mdc-typography">
+    
+    {# Unified page/message rendering: if `message` is provided render it,
+       otherwise render the full page using partials. #}
+    {% if message %}
+      <p>{{ message }}</p>
+    {% else %}
+      <h2>{{ page.title }}</h2>
+      {% include 'partials/scalars.html' %}
+      {% include 'partials/tables.html' %}
+      {% include 'partials/lists.html' %}
+    {% endif %}
+    
     {% block content %}{% endblock %}
   </body>
 </html>
